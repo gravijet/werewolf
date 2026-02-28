@@ -1,0 +1,230 @@
+import React from "react";
+import { useGame } from "../context/GameContext";
+import { Card } from "../components/Card";
+import { Button } from "../components/Button";
+import { Avatar } from "../components/Avatar";
+import { t } from "../i18n/translations";
+
+export function DayScreen({ lang }) {
+  const { state, me, emit } = useGame();
+  const day = state?.day;
+  const night = state?.night;
+  const victimId = night?.victimId;
+  const victim = victimId ? state?.players?.find((p) => p.playerId === victimId) : null;
+  const alive = (state?.players ?? []).filter((p) => p.isAlive);
+  const runoffCandidates = day?.runoffCandidates;
+  const candidates = runoffCandidates?.length
+    ? alive.filter((p) => runoffCandidates.includes(p.playerId) && !p.isHost)
+    : alive.filter((p) => p.playerId !== me?.playerId && !p.isHost);
+  const votes = day?.votes ?? {};
+  const myVote = me ? votes[me.playerId] : null;
+
+  const voteCounts = {};
+  candidates.forEach((p) => (voteCounts[p.playerId] = 0));
+  Object.values(votes).forEach((id) => {
+    if (id && voteCounts[id] !== undefined) voteCounts[id]++;
+  });
+
+  const iAmDead = me && !state?.players?.find((p) => p.playerId === me.playerId)?.isAlive;
+
+  return (
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
+      <header
+        style={{
+          background: "var(--md-sys-color-surface)",
+          paddingLeft: "max(16px, var(--safe-left))",
+          paddingRight: "max(16px, var(--safe-right))",
+          paddingTop: "max(16px, var(--safe-top))",
+          paddingBottom: 16,
+          borderBottom: "1px solid var(--md-sys-color-outline-variant)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: "50%", background: "rgba(217,119,6,0.1)", color: "#d97706" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 28 }}>light_mode</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--md-sys-color-on-surface)", letterSpacing: "-0.02em" }}>
+              {t(lang, "discussion")}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)", marginTop: 2 }}>
+              {t(lang, "round")} {state?.round ?? 1} · {t(lang, "day")}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div style={{ flex: 1, padding: "24px 16px", paddingLeft: "max(16px, var(--safe-left))", paddingRight: "max(16px, var(--safe-right))", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        {victim && (
+          <div
+            style={{
+              background: "var(--md-sys-color-error-container)",
+              color: "var(--md-sys-color-on-error-container)",
+              borderRadius: "var(--radius-lg)",
+              padding: "20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 32,
+            }}
+          >
+            <div style={{ 
+              width: 52, 
+              height: 52, 
+              borderRadius: "50%", 
+              background: "var(--md-sys-color-error)",
+              color: "var(--md-sys-color-on-error)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 28 }}>skull</span>
+            </div>
+            <div>
+              <p style={{ fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
+                {victim.name} {t(lang, "killedLastNight")}
+              </p>
+              <p style={{ fontSize: 14, fontWeight: 500, margin: "4px 0 0", opacity: 0.9 }}>{t(lang, "werewolvesStruck")}</p>
+            </div>
+          </div>
+        )}
+
+        {!iAmDead && (
+          <Card variant="elevated" style={{ padding: 0, marginBottom: 32, borderRadius: "var(--radius-xl)", overflow: "hidden" }}>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--md-sys-color-outline-variant)",
+                background: "var(--md-sys-color-surface-container)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 24 }}>how_to_vote</span>
+                <span style={{ fontWeight: 600, fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {t(lang, "voting")} · {t(lang, "voteWho")}
+                </span>
+              </div>
+              {day?.status !== "decided" && (
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", background: "var(--md-sys-color-surface-variant)", padding: "4px 10px", borderRadius: "var(--radius)" }}>
+                  {Object.keys(votes).length} / {alive.filter(p => p.playerId !== me?.playerId && !p.isHost).length + (me?.isHost ? 0 : 1)} {t(lang, "votes")}
+                </span>
+              )}
+            </div>
+            <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {candidates.map((p) => {
+                const count = voteCounts[p.playerId] ?? 0;
+                const max = Math.max(...Object.values(voteCounts), 1);
+                const isMyVote = myVote === p.playerId;
+                const votingFinished = day?.status === "decided";
+                const canVote = !me?.isHost && !votingFinished;
+                
+                return (
+                  <button
+                    key={p.playerId}
+                    type="button"
+                    className={canVote ? "md-state-layer" : ""}
+                    onClick={() => canVote && emit("day_vote", { targetPlayerId: p.playerId })}
+                    style={{
+                      padding: "16px 12px",
+                      borderRadius: "var(--radius-lg)",
+                      border: `2px solid ${isMyVote ? "var(--md-sys-color-primary)" : "transparent"}`,
+                      background: isMyVote ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface-container-low)",
+                      color: isMyVote ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface)",
+                      textAlign: "center",
+                      cursor: canVote ? "pointer" : "default",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative",
+                      overflow: "hidden",
+                      boxShadow: isMyVote ? "0 4px 6px -1px rgb(0 0 0 / 0.05)" : "none",
+                      opacity: votingFinished && !isMyVote && count === 0 ? 0.6 : 1,
+                    }}
+                  >
+                    <Avatar name={p.name} size={52} style={{ margin: "0 auto 12px" }} />
+                    <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px", letterSpacing: "-0.01em" }}>{p.name}</p>
+                    
+                    {votingFinished && (
+                      <div style={{ marginTop: 8 }}>
+                        <div
+                          style={{
+                            width: "100%",
+                            height: 6,
+                            background: isMyVote ? "rgba(0,0,0,0.1)" : "var(--md-sys-color-surface-variant)",
+                            borderRadius: 6,
+                            overflow: "hidden",
+                            marginBottom: 4
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${(count / max) * 100}%`,
+                              height: "100%",
+                              borderRadius: 6,
+                              background: "var(--md-sys-color-primary)",
+                              transition: "width 0.4s cubic-bezier(0.2, 0, 0, 1)",
+                            }}
+                          />
+                        </div>
+                        <p style={{ fontSize: 13, color: isMyVote ? "var(--md-sys-color-primary)" : "var(--md-sys-color-on-surface-variant)", margin: 0, fontWeight: 600 }}>
+                          {count} {t(lang, "votes")}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {isMyVote && (
+                      <div style={{ position: "absolute", top: 10, right: 10, color: "var(--md-sys-color-primary)" }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 24 }}>check_circle</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {runoffCandidates?.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", padding: "16px", background: "var(--md-sys-color-secondary-container)", borderRadius: "var(--radius-lg)", color: "var(--md-sys-color-on-secondary-container)" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 24 }}>warning</span>
+            <span style={{ fontSize: 15, fontWeight: 600 }}>{t(lang, "runoff")}</span>
+          </div>
+        )}
+      </div>
+
+      {me?.isHost && (
+        <footer style={{ 
+          padding: "20px 16px",
+          paddingBottom: "max(20px, var(--safe-bottom))",
+          paddingLeft: "max(16px, var(--safe-left))",
+          paddingRight: "max(16px, var(--safe-right))",
+          background: "var(--md-sys-color-surface)",
+          borderTop: "1px solid var(--md-sys-color-outline-variant)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12
+        }}>
+          <Button 
+            fullWidth 
+            onClick={() => {
+              const voterCount = alive.filter(p => p.playerId !== me?.playerId && !p.isHost).length + (me?.isHost ? 0 : 1);
+              const totalVotes = Object.keys(votes).length;
+              if (totalVotes < voterCount && day?.status !== "decided") {
+                if (window.confirm("Es haben noch nicht alle Spieler abgestimmt. Wahl trotzdem auswerten?")) {
+                  emit("phase_next");
+                }
+              } else {
+                emit("phase_next");
+              }
+            }} 
+            style={{ padding: "16px", fontSize: 16 }}
+          >
+            {t(lang, "nextPhase")}
+          </Button>
+        </footer>
+      )}
+    </div>
+  );
+}

@@ -14,6 +14,7 @@ export const DEFAULT_RULES = {
   voteDurationSeconds: 180,
   mayorElectionEnabled: true,
   revealRolesToDead: true,
+  seherMode: "good_evil", // "good_evil" or "exact_role"
   roles: {
     werwolf: { count: "1/3", enabled: true },
     seher: { count: 1, enabled: true },

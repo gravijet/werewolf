@@ -88,7 +88,7 @@ export function addBan({ playerId, name, fingerprint, ip }) {
  */
 export function removeBan(adminPlayerId, targetPlayerId) {
   const admin = findPlayer(adminPlayerId);
-  if (!admin || (!admin.isAdmin && !admin.isHost)) return { ok: false, error: "not_admin" };
+  if (!admin || !admin.isAdmin) return { ok: false, error: "not_admin" };
   
   const banData = bans.players.get(targetPlayerId);
   if (banData) {
@@ -112,6 +112,25 @@ export function getState(viewerPlayerId = null) {
     ...state,
     players,
   };
+
+  // Mask night actions to avoid cheating
+  if (outState.night) {
+    outState.night = { ...outState.night };
+    if (!viewer?.isHost && !viewer?.isAdmin) {
+      outState.night.actions = {
+        werwolf: { targetId: viewer?.role === 'werwolf' ? outState.night.actions.werwolf?.targetId : null },
+        seher: { 
+          targetId: viewer?.role === 'seher' ? outState.night.actions.seher?.targetId : null,
+          isTargetEvil: viewer?.role === 'seher' ? outState.night.actions.seher?.isTargetEvil : null,
+          exactRole: viewer?.role === 'seher' ? outState.night.actions.seher?.exactRole : null
+        },
+        hexe: { 
+          healId: viewer?.role === 'hexe' ? outState.night.actions.hexe?.healId : null,
+          poisonId: viewer?.role === 'hexe' ? outState.night.actions.hexe?.poisonId : null
+        }
+      };
+    }
+  }
 
   if (viewer?.isAdmin) {
     outState.bannedPlayers = Array.from(bans.players.entries()).map(([id, data]) => ({
@@ -302,7 +321,7 @@ export function adminLockName(adminPlayerId, targetPlayerId, lock) {
  */
 export function adminBan(adminPlayerId, { targetPlayerId, fingerprint, ip }) {
   const admin = findPlayer(adminPlayerId);
-  if (!admin || (!admin.isAdmin && !admin.isHost)) return { ok: false, error: "not_admin" };
+  if (!admin || !admin.isAdmin) return { ok: false, error: "not_admin" };
   const target = findPlayer(targetPlayerId);
   if (!target) return { ok: false, error: "player_not_found" };
   if (target.isAdmin) return { ok: false, error: "cannot_ban_admin" };
@@ -349,7 +368,7 @@ export function startGame(hostPlayerId) {
   
   const playingPlayers = state.players.filter(p => !p.isHost);
   const alive = playingPlayers.filter((p) => p.isConnected);
-  if (alive.length < 2) return { ok: false, error: "not_enough_players" };
+  if (alive.length < state.rules.minPlayers) return { ok: false, error: "not_enough_players" };
 
   state.round = 1;
   state.night = null;
@@ -479,7 +498,7 @@ export function finishMayorElection(hostPlayerId) {
 
 // --- Nacht & Tag: Aktionen und Phasenwechsel ---
 
-const NIGHT_SUBPHASES = ["werwolf", "seher", "hexe"];
+const NIGHT_SUBPHASES = ["werwolf", "hexe", "seher"];
 
 /**
  * Nachtaktion abgeben (Werwolf-Ziel, Seher-Ziel, Hexe Heil/Gift).
@@ -502,8 +521,12 @@ export function submitNightAction(playerId, payload) {
     if (targetId && findPlayer(targetId)?.isAlive) {
       actions.seher.targetId = targetId;
       const targetPlayer = findPlayer(targetId);
-      const isEvil = targetPlayer?.role === "werwolf";
-      return { ok: true, result: isEvil ? "böse" : "gut" };
+      if (state.rules.seherMode === "exact_role") {
+        actions.seher.exactRole = targetPlayer?.role;
+      } else {
+        actions.seher.isTargetEvil = targetPlayer?.role === "werwolf";
+      }
+      return { ok: true };
     }
     return { ok: true };
   }

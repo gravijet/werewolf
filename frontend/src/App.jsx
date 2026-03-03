@@ -13,14 +13,18 @@ import { AdminScreen } from "./screens/AdminScreen";
 import { Button } from "./components/Button";
 
 function LanguageSwitcher({ lang, setLang }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const languages = [
+    { code: "de", label: "DE" },
+    { code: "en", label: "EN" },
+    { code: "sv", label: "SV" }
+  ];
+
   return (
-    <div style={{ position: "fixed", top: 16, right: 16, zIndex: 1000 }}>
-      <select
-        value={lang}
-        onChange={(e) => {
-          setLang(e.target.value);
-          setStoredLanguage(e.target.value);
-        }}
+    <div style={{ position: "fixed", top: 16, right: 80, zIndex: 1000 }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
         style={{
           background: "var(--md-sys-color-surface)",
           color: "var(--md-sys-color-on-surface)",
@@ -28,13 +32,69 @@ function LanguageSwitcher({ lang, setLang }) {
           padding: "8px 12px",
           borderRadius: 8,
           fontSize: 14,
-          cursor: "pointer"
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          transition: "all 0.2s"
         }}
       >
-        <option value="de">Deutsch</option>
-        <option value="en">English</option>
-        <option value="sv">Svenska</option>
-      </select>
+        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>language</span>
+        {lang.toUpperCase()}
+      </button>
+
+      {isOpen && (
+        <>
+          <div 
+            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} 
+            onClick={() => setIsOpen(false)} 
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              right: 0,
+              marginTop: 8,
+              background: "var(--md-sys-color-surface)",
+              border: "1px solid var(--md-sys-color-outline-variant)",
+              borderRadius: 12,
+              padding: 4,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 1000,
+              minWidth: 100
+            }}
+          >
+            {languages.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => {
+                  setLang(l.code);
+                  setStoredLanguage(l.code);
+                  setIsOpen(false);
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "10px 16px",
+                  background: lang === l.code ? "var(--md-sys-color-secondary-container)" : "transparent",
+                  color: lang === l.code ? "var(--md-sys-color-on-secondary-container)" : "var(--md-sys-color-on-surface)",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: lang === l.code ? 700 : 500,
+                  cursor: "pointer",
+                  transition: "background 0.2s"
+                }}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

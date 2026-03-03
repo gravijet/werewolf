@@ -167,6 +167,57 @@ export function AdminScreen({ lang, onClose }) {
               </div>
             </Card>
 
+            <Card style={{ padding: "28px 24px", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 24 }}>visibility</span>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--md-sys-color-on-surface)", letterSpacing: "-0.01em" }}>
+                  {t(lang, "seherMode")}
+                </h3>
+              </div>
+              <div style={{ display: "grid", gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => handleRuleChange("seherMode", "good_evil")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "16px",
+                    borderRadius: "12px",
+                    background: rules.seherMode !== "exact_role" ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface)",
+                    color: rules.seherMode !== "exact_role" ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface)",
+                    border: `1px solid ${rules.seherMode !== "exact_role" ? "var(--md-sys-color-primary)" : "var(--md-sys-color-outline-variant)"}`,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{rules.seherMode !== "exact_role" ? "radio_button_checked" : "radio_button_unchecked"}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>{t(lang, "seherModeGoodEvil")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRuleChange("seherMode", "exact_role")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "16px",
+                    borderRadius: "12px",
+                    background: rules.seherMode === "exact_role" ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface)",
+                    color: rules.seherMode === "exact_role" ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface)",
+                    border: `1px solid ${rules.seherMode === "exact_role" ? "var(--md-sys-color-primary)" : "var(--md-sys-color-outline-variant)"}`,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{rules.seherMode === "exact_role" ? "radio_button_checked" : "radio_button_unchecked"}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>{t(lang, "seherModeExact")}</span>
+                </button>
+              </div>
+            </Card>
+
             {/* Rollen */}
             {(() => {
               const playerCount = players.filter((p) => !p.isHost).length;
@@ -423,7 +474,7 @@ export function AdminScreen({ lang, onClose }) {
                       {t(lang, "kick")}
                     </Button>
                   )}
-                  {(me?.isAdmin || me?.isHost) && p.playerId !== me?.playerId && !p.isAdmin && (
+                  {(me?.isAdmin) && p.playerId !== me?.playerId && !p.isAdmin && (
                     <Button
                       small
                       variant="danger"
@@ -441,7 +492,7 @@ export function AdminScreen({ lang, onClose }) {
           </div>
         )}
 
-        {activeTab === "banned" && (me?.isAdmin || me?.isHost) && (
+        {activeTab === "banned" && me?.isAdmin && (
           <div role="tabpanel" id="panel-banned" aria-labelledby="tab-banned">
           <Card style={{ padding: 0 }}>
             {bannedPlayers.length === 0 ? (

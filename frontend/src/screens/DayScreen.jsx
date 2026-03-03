@@ -183,6 +183,21 @@ export function DayScreen({ lang }) {
                 );
               })}
             </div>
+            {!me?.isHost && day?.status !== "decided" && (
+              <div style={{ padding: "0 16px 16px" }}>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={() => emit("day_vote", { targetPlayerId: null })}
+                  style={{
+                    border: `2px solid ${myVote === null ? "var(--md-sys-color-primary)" : "var(--md-sys-color-outline-variant)"}`,
+                    color: myVote === null ? "var(--md-sys-color-primary)" : "var(--md-sys-color-on-surface)",
+                  }}
+                >
+                  Niemanden wählen (Überspringen)
+                </Button>
+              </div>
+            )}
           </Card>
         )}
 
@@ -206,6 +221,28 @@ export function DayScreen({ lang }) {
           flexDirection: "column",
           gap: 12
         }}>
+          {day?.status !== "decided" && (
+            <Card style={{ marginBottom: 12, padding: "16px", background: "var(--md-sys-color-surface-container)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ fontWeight: 600, fontSize: 14, color: "var(--md-sys-color-on-surface)" }}>Abstimmung läuft</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-primary)" }}>
+                  {Object.keys(votes).length} / {alive.filter(p => p.playerId !== me?.playerId && !p.isHost).length + (me?.isHost ? 0 : 1)} {t(lang, "votes")}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {candidates.map(p => {
+                  const count = voteCounts[p.playerId] ?? 0;
+                  if (count === 0) return null;
+                  return (
+                    <div key={p.playerId} style={{ background: "var(--md-sys-color-surface-variant)", padding: "4px 8px", borderRadius: 8, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>{p.name}</span>
+                      <span style={{ background: "var(--md-sys-color-primary)", color: "var(--md-sys-color-on-primary)", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
           <Button 
             fullWidth 
             onClick={() => {

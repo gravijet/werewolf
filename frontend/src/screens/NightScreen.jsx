@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useGame } from "../context/GameContext";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
-import { t } from "../i18n/translations";
+import { t, speakText } from "../i18n/translations";
 import { useHostAudio } from "../audio/useHostAudio";
 
 export function NightScreen({ lang }) {
@@ -37,26 +37,31 @@ export function NightScreen({ lang }) {
     (myRole === "seher" && actions.seher?.targetId) ||
     (myRole === "hexe" && (actions.hexe?.healId || actions.hexe?.poisonId));
 
+  const seherResultId = actions.seher?.targetId;
+  const seherResultPlayer = seherResultId ? (state?.players ?? []).find(p => p.playerId === seherResultId) : null;
+  const isTargetEvil = actions.seher?.isTargetEvil;
+  const exactRole = actions.seher?.exactRole;
+
   return (
     <div
       style={{
         minHeight: "100dvh",
-        background: "#09090b", // zinc-950
-        color: "#fafafa", // zinc-50
+        background: "#000000", // pure black for darker night feel
+        color: "#f8fafc",
         paddingBottom: "max(24px, env(safe-area-inset-bottom))",
         display: "flex",
         flexDirection: "column",
       }}
     >
       <header style={{ padding: "40px 20px 32px", textAlign: "center" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.1)", marginBottom: 20 }}>
-          <span className="material-symbols-outlined" style={{ color: "#fbbf24", fontSize: 36 }}>dark_mode</span>
+        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, borderRadius: "50%", background: "rgba(147,197,253,0.1)", marginBottom: 20 }}>
+          <span className="material-symbols-outlined" style={{ color: "#93c5fd", fontSize: 36 }}>dark_mode</span>
         </div>
-        <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
+        <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "rgba(147,197,253,0.5)", marginBottom: 8 }}>
           {t(lang, "round")} {state?.round ?? 1} · {t(lang, "night")}
         </p>
         <h2 style={{ fontSize: 32, fontWeight: 800, margin: "0 8px 8px", letterSpacing: "-0.03em" }}>{t(lang, "nightTitle")}</h2>
-        <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(255,255,255,0.7)", marginTop: 0, letterSpacing: "-0.01em" }}>{t(lang, "nightCloseEyes")}</p>
+        <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(147,197,253,0.7)", marginTop: 0, letterSpacing: "-0.01em" }}>{t(lang, "nightCloseEyes")}</p>
       </header>
 
       <div style={{ flex: 1, padding: "0 20px" }}>
@@ -68,14 +73,15 @@ export function NightScreen({ lang }) {
               gap: 16,
               padding: "20px 24px",
               marginBottom: 24,
-              background: "rgba(251,191,36,0.1)",
-              border: "1px solid rgba(251,191,36,0.2)",
+              background: "rgba(59,130,246,0.1)",
+              border: "1px solid rgba(59,130,246,0.2)",
               borderRadius: "var(--radius-lg)",
+              position: "relative",
             }}
           >
-            <span className="material-symbols-outlined" style={{ color: "#fbbf24", fontSize: 32, marginTop: 4 }}>masks</span>
+            <span className="material-symbols-outlined" style={{ color: "#60a5fa", fontSize: 32, marginTop: 4 }}>masks</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#fbbf24", margin: "0 0 2px", letterSpacing: "-0.01em" }}>
+              <p style={{ fontSize: 20, fontWeight: 700, color: "#60a5fa", margin: "0 0 2px", letterSpacing: "-0.01em" }}>
                 {t(lang, myRole) || myRole}
               </p>
               <p style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)", margin: "0 0 8px", letterSpacing: "0px" }}>{t(lang, "yourRole")}</p>
@@ -83,6 +89,24 @@ export function NightScreen({ lang }) {
                 {t(lang, `${myRole}_desc`)}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => speakText(t(lang, `${myRole}_desc`), lang)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#60a5fa",
+                cursor: "pointer",
+                padding: 8,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              title={t(lang, "readAloud")}
+            >
+              <span className="material-symbols-outlined">volume_up</span>
+            </button>
           </div>
         )}
 
@@ -106,7 +130,7 @@ export function NightScreen({ lang }) {
               <>
                 <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(255,255,255,0.8)", marginBottom: 20, letterSpacing: "-0.01em" }}>Wen fressen die Werwölfe diese Nacht?</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 32 }}>
-                  {alive.map((p) => (
+                  {alive.filter(p => p.role !== "werwolf").map((p) => (
                     <button
                       key={p.playerId}
                       type="button"
@@ -124,10 +148,9 @@ export function NightScreen({ lang }) {
                         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                         position: "relative",
                         overflow: "hidden",
-                        opacity: p.role === "werwolf" ? 0.5 : 1,
                       }}
                     >
-                      {p.name} {p.role === "werwolf" ? "(Werwolf)" : ""}
+                      {p.name}
                     </button>
                   ))}
                 </div>
@@ -272,6 +295,40 @@ export function NightScreen({ lang }) {
           >
             <span className="material-symbols-outlined" style={{ fontSize: 40, color: "#10b981" }}>check_circle</span>
             <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em" }}>{t(lang, "actionConfirm")}</span>
+            {myRole === "seher" && seherResultPlayer && (
+              <div style={{ marginTop: 8, paddingTop: 16, borderTop: "1px solid rgba(16,185,129,0.2)", width: "100%" }}>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", margin: "0 0 8px" }}>Dein Ergebnis für <strong>{seherResultPlayer.name}</strong>:</p>
+                {exactRole ? (
+                  <p style={{ 
+                    fontSize: 18, 
+                    fontWeight: 700, 
+                    color: "#f8fafc",
+                    margin: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: "#3b82f6" }}>visibility</span>
+                    Rolle: {t(lang, exactRole) || exactRole}
+                  </p>
+                ) : (
+                  <p style={{ 
+                    fontSize: 18, 
+                    fontWeight: 700, 
+                    color: isTargetEvil ? "#ef4444" : "#3b82f6",
+                    margin: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8
+                  }}>
+                    <span className="material-symbols-outlined">{isTargetEvil ? "visibility_off" : "visibility"}</span>
+                    {isTargetEvil ? t(lang, "targetEvil") : t(lang, "targetGood")}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -281,20 +338,22 @@ export function NightScreen({ lang }) {
           style={{
             margin: "32px 20px 16px",
             padding: 24,
-            background: "rgba(239,68,68,0.1)",
-            border: "1px solid rgba(239,68,68,0.2)",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: "var(--radius-lg)",
+            backdropFilter: "blur(12px)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 24, color: "#ef4444" }}>admin_panel_settings</span>
-            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#fca5a5" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 24, color: "var(--md-sys-color-primary)" }}>admin_panel_settings</span>
+            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--md-sys-color-on-surface)" }}>
               {t(lang, "hostControl")}
             </span>
           </div>
           <Button
+            variant="filled"
             onClick={() => emit("phase_next")}
-            style={{ width: "100%", background: "rgba(255,255,255,0.1)", color: "#fff", border: "none", padding: "16px", fontSize: 16 }}
+            style={{ width: "100%", padding: "16px", fontSize: 16, fontWeight: 600 }}
           >
             {t(lang, "nextPhase")}
           </Button>

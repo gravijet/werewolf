@@ -45,7 +45,7 @@ export const translations = {
     yourAction: "Deine Aktion",
     actionConfirm: "Aktion bestätigt",
     hostControl: "Host-Steuerung",
-    nextPhase: "Nächste Phase",
+    nextPhase: "Weiter",
     playAudio: "Audio abspielen",
     muteAudio: "Stummschalten",
     discussion: "Diskussion & Abstimmung",
@@ -86,7 +86,8 @@ export const translations = {
     roomFull: "Der Raum ist voll.",
     runoff: "Stichwahl",
     full: "Vollständig",
-    role: "Rolle",
+    moderator: "Spielleiter",
+    moderator_desc: "Leitet das Spiel, moderiert die Diskussionen und ruft nachts die Rollen auf. Du spielst nicht aktiv mit, sondern sorgst dafür, dass alles reibungslos abläuft.",
     werwolf: "Werwolf",
     werwolf_desc: "Erwacht jede Nacht und bestimmt mit den anderen Werwölfen ein Opfer.",
     seher: "Seher",
@@ -123,6 +124,9 @@ export const translations = {
     targetGood: "Der Spieler ist GUT",
     targetEvil: "Der Spieler ist BÖSE (Werwolf)",
     readAloud: "Vorlesen",
+    seherMode: "Seher-Modus",
+    seherModeGoodEvil: "Nur Gut / Böse",
+    seherModeExact: "Genaue Rolle",
   },
   en: {
     appTitle: "Werewolf",
@@ -170,7 +174,7 @@ export const translations = {
     yourAction: "Your action",
     actionConfirm: "Action confirmed",
     hostControl: "Host control",
-    nextPhase: "Next phase",
+    nextPhase: "Continue",
     playAudio: "Play audio",
     muteAudio: "Mute",
     discussion: "Discussion & vote",
@@ -206,7 +210,8 @@ export const translations = {
     roomFull: "The room is full.",
     runoff: "Runoff",
     full: "Complete",
-    role: "Role",
+    moderator: "Game Master",
+    moderator_desc: "Guides the game, moderates discussions and calls out roles during the night. You don't actively play, but make sure everything runs smoothly.",
     werwolf: "Werewolf",
     werwolf_desc: "Wakes up every night and chooses a victim with the other werewolves.",
     seher: "Seer",
@@ -243,6 +248,9 @@ export const translations = {
     targetGood: "Player is GOOD",
     targetEvil: "Player is EVIL (Werewolf)",
     readAloud: "Read aloud",
+    seherMode: "Seer Mode",
+    seherModeGoodEvil: "Good / Evil only",
+    seherModeExact: "Exact Role",
   },
   sv: {
     appTitle: "Varulv",
@@ -290,7 +298,7 @@ export const translations = {
     yourAction: "Din handling",
     actionConfirm: "Handling bekräftad",
     hostControl: "Värdkontroll",
-    nextPhase: "Nästa fas",
+    nextPhase: "Fortsätt",
     playAudio: "Spela ljud",
     muteAudio: "Stäng av ljud",
     discussion: "Diskussion & röstning",
@@ -331,7 +339,8 @@ export const translations = {
     roomFull: "Rummet är fullt.",
     runoff: "Utslagsröstning",
     full: "Klar",
-    role: "Roll",
+    moderator: "Spelledare",
+    moderator_desc: "Leder spelet, modererar diskussioner och ropar ut roller på natten. Du spelar inte aktivt, utan ser till att allt går smidigt.",
     werwolf: "Varulv",
     werwolf_desc: "Vaknar varje natt och väljer ett offer med de andra varulvarna.",
     seher: "Siare",
@@ -368,6 +377,9 @@ export const translations = {
     targetGood: "Spelaren är GOD",
     targetEvil: "Spelaren är OND (Varulv)",
     readAloud: "Läs upp högt",
+    seherMode: "Siare-läge",
+    seherModeGoodEvil: "Bara God / Ond",
+    seherModeExact: "Exakt roll",
   },
 };
 
@@ -385,4 +397,30 @@ export function getStoredLanguage() {
 export function setStoredLanguage(lang) {
   try {
     localStorage.setItem(STORAGE_LANG, lang);
-  } c
+  } catch {}
+}
+
+export function t(lang, key) {
+  return translations[lang]?.[key] ?? translations.de[key] ?? key;
+}
+
+export function speakText(text, lang) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  // Cancel any ongoing speech
+  window.speechSynthesis.cancel();
+  
+  const utterance = new SpeechSynthesisUtterance(text);
+  
+  // Try to find a voice that matches the language
+  const voices = window.speechSynthesis.getVoices();
+  const langPrefix = lang === 'en' ? 'en-' : (lang === 'sv' ? 'sv-' : 'de-');
+  const voice = voices.find(v => v.lang.startsWith(langPrefix)) || voices.find(v => v.lang.startsWith(lang));
+  
+  if (voice) {
+    utterance.voice = voice;
+  } else {
+    utterance.lang = lang === 'en' ? 'en-US' : (lang === 'sv' ? 'sv-SE' : 'de-DE');
+  }
+  
+  window.speechSynthesis.speak(utterance);
+}

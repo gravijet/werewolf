@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 
-const PHRASES = {
+export const PHRASES = {
   mayor_election: "Bürgermeisterwahl. Bitte wählt eine Person.",
   night: "Die Nacht bricht an. Alle schließen die Augen.",
   werwolf: "Werwölfe, wacht auf. Wählt euer Opfer.",
@@ -9,37 +9,17 @@ const PHRASES = {
   day: "Der Tag bricht an. Alle öffnet die Augen.",
 };
 
-const audioCache = {};
-
-function getSpeechUrl(text) {
-  if (typeof window === "undefined" || !window.speechSynthesis) return null;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "de-DE";
-  u.rate = 0.9;
-  return { u, text };
-}
-
-export function useHostAudio(phase, round, subPhase, isHost) {
-  const lastRef = useRef({ phase: null, subPhase: null });
-
-  useEffect(() => {
+export function useHostAudio(phase, subPhase, isHost) {
+  const speakCurrent = useCallback(() => {
     if (!isHost || typeof window === "undefined" || !window.speechSynthesis) return;
-
-    const key = `${phase}-${subPhase ?? ""}`;
-    if (lastRef.current.phase === phase && lastRef.current.subPhase === (subPhase ?? "")) return;
-    lastRef.current = { phase, subPhase: subPhase ?? "" };
-
     const toSpeak = subPhase ? PHRASES[subPhase] : PHRASES[phase];
     if (!toSpeak) return;
-
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(toSpeak);
     u.lang = "de-DE";
     u.rate = 0.9;
     window.speechSynthesis.speak(u);
+  }, [phase, subPhase, isHost]);
 
-    return () => {
-      window.speechSynthesis.cancel();
-    };
-  }, [phase, round, subPhase, isHost]);
+  return { speakCurrent };
 }

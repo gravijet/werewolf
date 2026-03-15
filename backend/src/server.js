@@ -35,8 +35,12 @@ import {
   submitNightAction,
   advanceNightPhase,
   submitDayVote,
+  submitDayAccusation,
   resolveDayPhase,
+  submitJaegerKill,
   advanceFromResult,
+  hostSetMayor,
+  hostSkipPhase,
   removePlayer,
   generateReconnectToken,
   removeBan,
@@ -45,6 +49,7 @@ import {
   getBansForPersistence,
   forceUnban,
   resetState,
+  resetToLobbyAfterGameEnd,
   endGameNow,
 } from "./game-state.js";
 import * as persistence from "./persistence.js";
@@ -103,6 +108,10 @@ io.on("connection", (socket) => {
       socket.emit("join_error", { code, message });
       if (typeof ack === "function") ack({ ok: false, code, message });
     };
+
+    if (getState(null).phase === "game_end") {
+      resetToLobbyAfterGameEnd();
+    }
 
     if (isBanned({ playerId: clientPlayerId, fingerprint, ip })) {
       sendError("banned", "Du bist von diesem Raum ausgeschlossen.");
@@ -293,6 +302,16 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
+  socket.on("day_accuse", (payload) => {
+    const playerId = getPlayerIdBySocket(socket.id);
+    const result = submitDayAccusation(playerId, payload?.targetPlayerId);
+    if (!result.ok) {
+      socket.emit("error", { code: result.error || "invalid", message: "Anklage ungültig." });
+      return;
+    }
+    broadcastState();
+  });
+
   socket.on("day_vote", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = submitDayVote(playerId, payload?.targetPlayerId);
@@ -300,6 +319,17 @@ io.on("connection", (socket) => {
       socket.emit("error", { code: result.error || "invalid_vote", message: "Stimme ungültig." });
       return;
     }
+    broadcastState();
+  });
+
+  socket.on("jaeger_kill", (payload) => {
+    const playerId = getPlayerIdBySocket(socket.id);
+    const result = submitJaegerKill(playerId, payload?.targetId ?? payload?.targetPlayerId);
+    if (!result.ok) {
+      socket.emit("error", { code: result.error || "forbidden", message: "Jäger-Schuss nicht möglich." });
+      return;
+    }
+    if (result.phase) broadcast("phase_changed", { phase: result.phase });
     broadcastState();
   });
 
@@ -427,6 +457,36 @@ io.on("connection", (socket) => {
       socket.emit("error", { code: result.error || "forbidden", message: "Host-Wechsel fehlgeschlagen." });
       return;
     }
+    broadcastState();
+  });
+
+  socket.on("host_set_mayor", (payload) => {
+    const playerId = getPlayerIdBySocket(socket.id);
+    const result = hostSetMayor(playerId, payload?.mayorPlayerId ?? null);
+    if (!result.ok) {
+      socket.emit("error", { code: result.error || "forbidden", message: "Aktion nicht möglich." });
+      return;
+    }
+    if (result.mayorId) {
+      const mayor = findPlayer(result.mayorId);
+      broadcast("mayor_result", { mayorId: result.mayorId, mayorName: mayor?.name });
+    }
+    if (result.phase) broadcast("phase_changed", { phase: result.phase, round: getState(null).round ?? 1 });
+    broadcastState();
+  });
+
+  socket.on("host_skip_phase", () => {
+    const playerId = getPlayerIdBySocket(socket.id);
+    const result = hostSkipPhase(playerId);
+    if (!result.ok) {
+      socket.emit("error", { code: result.error || "forbidden", message: "Phase überspringen nicht möglich." });
+      return;
+    }
+    if (result.victimId) {
+      const victim = findPlayer(result.victimId);
+      broadcast("night_victim", { victimId: result.victimId, victimName: victim?.name });
+    }
+    if (result.phase) broadcast("phase_changed", { phase: result.phase, round: result.round ?? getState(null).round });
     broadcastState();
   });
 

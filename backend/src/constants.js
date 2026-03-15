@@ -24,5 +24,6 @@ export const DEFAULT_RULES = {
     kopfgeldjaeger: { count: 1, enabled: false },
     jaeger: { count: 1, enabled: false },
     blinzelmaedchen: { count: 1, enabled: false },
+    baecker: { count: 1, enabled: false },
   },
 };

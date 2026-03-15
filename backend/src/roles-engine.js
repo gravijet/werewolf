@@ -14,6 +14,7 @@ const ROLE_IDS = [
   "kopfgeldjaeger",
   "jaeger",
   "blinzelmaedchen",
+  "baecker",
 ];
 
 /**
@@ -92,5 +93,6 @@ export function getRoleMeta() {
     kopfgeldjaeger: { label: "Kopfgeldjäger", team: "village" },
     jaeger: { label: "Jäger", team: "village" },
     blinzelmaedchen: { label: "Blinzelmädchen", team: "village" },
+    baecker: { label: "Bäcker", team: "village" },
   };
 }

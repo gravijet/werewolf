@@ -117,16 +117,27 @@ export function getState(viewerPlayerId = null) {
   if (outState.night) {
     outState.night = { ...outState.night };
     if (!viewer?.isHost && !viewer?.isAdmin) {
+      const rawActions = state.night?.actions || {};
       outState.night.actions = {
-        werwolf: { targetId: viewer?.role === 'werwolf' ? outState.night.actions.werwolf?.targetId : null },
+        werwolf: {
+          targetId: (viewer?.role === 'werwolf' || viewer?.role === 'hexe') ? rawActions.werwolf?.targetId : null
+        },
         seher: { 
-          targetId: viewer?.role === 'seher' ? outState.night.actions.seher?.targetId : null,
-          isTargetEvil: viewer?.role === 'seher' ? outState.night.actions.seher?.isTargetEvil : null,
-          exactRole: viewer?.role === 'seher' ? outState.night.actions.seher?.exactRole : null
+          targetId: viewer?.role === 'seher' ? rawActions.seher?.targetId : null,
+          isTargetEvil: viewer?.role === 'seher' ? rawActions.seher?.isTargetEvil : null,
+          exactRole: viewer?.role === 'seher' ? rawActions.seher?.exactRole : null
         },
         hexe: { 
-          healId: viewer?.role === 'hexe' ? outState.night.actions.hexe?.healId : null,
-          poisonId: viewer?.role === 'hexe' ? outState.night.actions.hexe?.poisonId : null
+          healId: viewer?.role === 'hexe' ? rawActions.hexe?.healId : null,
+          poisonId: viewer?.role === 'hexe' ? rawActions.hexe?.poisonId : null,
+          passed: viewer?.role === 'hexe' ? rawActions.hexe?.passed : null
+        },
+        baecker: {
+          targetId: viewer?.role === 'baecker' ? rawActions.baecker?.targetId : null
+        },
+        amor: {
+          lover1Id: viewer?.role === 'amor' ? rawActions.amor?.lover1Id : null,
+          lover2Id: viewer?.role === 'amor' ? rawActions.amor?.lover2Id : null
         }
       };
     }
@@ -164,6 +175,9 @@ function maskPlayer(player, viewerPlayerId) {
   };
   if (showRole && state.phase !== "lobby") {
     out.role = player.role;
+    if (isDeadViewer && !isViewer && player.role === "werwolf") {
+      out.role = null;
+    }
   }
   return out;
 }
@@ -375,6 +389,8 @@ export function startGame(hostPlayerId) {
   state.day = null;
   state.gameLog = [];
   state.winner = null;
+  state.witchUsedHeal = false;
+  state.witchUsedPoison = false;
 
   const n = playingPlayers.length;
   const roles = distributeRoles(state.rules, n);
@@ -403,12 +419,7 @@ export function startGame(hostPlayerId) {
   } else {
     state.phase = "night";
     state.mayorElection = null;
-    state.night = {
-      round: state.round,
-      subPhase: "werwolf",
-      actions: { werwolf: { targetId: null }, seher: { targetId: null }, hexe: { healId: null, poisonId: null } },
-      victimId: null,
-    };
+    state.night = createNightState();
   }
   schedulePersist();
   return { ok: true };
@@ -422,13 +433,14 @@ function shuffle(arr) {
 }
 
 /**
- * Bürgermeisterwahl: Stimme abgeben.
+ * Bürgermeisterwahl: Stimme abgeben. Host darf nicht abstimmen.
  */
 export function submitMayorVote(playerId, targetPlayerId) {
   if (state.phase !== "mayor_election" || !state.mayorElection)
     return { ok: false, error: "invalid_phase" };
   const p = findPlayer(playerId);
   if (!p || !p.isAlive) return { ok: false, error: "not_allowed" };
+  if (p.isHost) return { ok: false, error: "host_does_not_vote" };
   const target = findPlayer(targetPlayerId);
   if (!target || !state.mayorElection.candidateIds.includes(targetPlayerId))
     return { ok: false, error: "invalid_target" };
@@ -454,12 +466,7 @@ export function finishMayorElection(hostPlayerId) {
       return { ok: true, backToDay: true };
     }
     state.phase = "night";
-    state.night = {
-      round: state.round,
-      subPhase: "werwolf",
-      actions: { werwolf: { targetId: null }, seher: { targetId: null }, hexe: { healId: null, poisonId: null } },
-      victimId: null,
-    };
+    state.night = createNightState();
     state.day = null;
     schedulePersist();
     return { ok: true, toNight: true };
@@ -486,6 +493,13 @@ export function finishMayorElection(hostPlayerId) {
   }
 
   if (winners.length > 1) {
+    if (state.mayorElection.status === "tie_redo") {
+      state.mayorElection.status = "decided";
+      state.mayorElection.mayorId = null;
+      state.players.forEach((p) => (p.isMayor = false));
+      schedulePersist();
+      return { ok: true, decided: true, mayorId: null };
+    }
     state.mayorElection.status = "tie_redo";
     state.mayorElection.candidateIds = winners;
     state.mayorElection.votes = {};
@@ -493,12 +507,96 @@ export function finishMayorElection(hostPlayerId) {
     return { ok: true, tie: true };
   }
 
+  if (maxVotes === 0 || winners.length === 0) {
+    state.mayorElection.status = "decided";
+    state.mayorElection.mayorId = null;
+    schedulePersist();
+    return { ok: true, decided: true, mayorId: null };
+  }
+
   return { ok: false, error: "no_votes" };
 }
 
 // --- Nacht & Tag: Aktionen und Phasenwechsel ---
 
-const NIGHT_SUBPHASES = ["werwolf", "hexe", "seher"];
+function getNightSubphases() {
+  const base = ["werwolf", "hexe", "seher", "baecker"];
+  const hasAmor = state.players.some((p) => p.role === "amor");
+  if (state.round === 1 && hasAmor) return ["amor", ...base];
+  return base;
+}
+
+function createNightState() {
+  return {
+    round: state.round,
+    subPhase: getNightSubphases()[0],
+    actions: {
+      werwolf: { targetId: null },
+      seher: { targetId: null },
+      hexe: { healId: null, poisonId: null },
+      baecker: { targetId: null },
+      amor: { lover1Id: null, lover2Id: null },
+    },
+    victimId: null,
+  };
+}
+
+/**
+ * Host oder Admin: Bürgermeister festlegen (ohne Abstimmung) und zur nächsten Phase.
+ */
+export function hostSetMayor(hostPlayerId, mayorPlayerId) {
+  const host = findPlayer(hostPlayerId);
+  if (!host || (!host.isHost && !host.isAdmin)) return { ok: false, error: "not_host" };
+  if (state.phase !== "mayor_election" || !state.mayorElection)
+    return { ok: false, error: "invalid_phase" };
+  if (mayorPlayerId) {
+    const target = findPlayer(mayorPlayerId);
+    if (!target || !target.isAlive || target.isHost) return { ok: false, error: "invalid_target" };
+  }
+  state.players.forEach((p) => (p.isMayor = p.playerId === mayorPlayerId));
+  state.mayorElection.status = "decided";
+  state.mayorElection.mayorId = mayorPlayerId;
+  if (state.day?.pendingTieResolution) {
+    state.day.pendingTieResolution = false;
+    state.phase = "day";
+    schedulePersist();
+    return { ok: true, phase: "day", mayorId: mayorPlayerId };
+  }
+  state.phase = "night";
+  state.night = createNightState();
+  state.day = null;
+  schedulePersist();
+  return { ok: true, phase: "night", mayorId: mayorPlayerId };
+}
+
+/**
+ * Host oder Admin: Aktuelle Phase/Subphase überspringen (z. B. Seher nicht da).
+ */
+export function hostSkipPhase(hostPlayerId) {
+  const host = findPlayer(hostPlayerId);
+  if (!host || (!host.isHost && !host.isAdmin)) return { ok: false, error: "not_host" };
+  if (state.phase === "night" && state.night) {
+    const subphases = getNightSubphases();
+    const idx = subphases.indexOf(state.night.subPhase);
+    if (idx < subphases.length - 1) {
+      state.night.subPhase = subphases[idx + 1];
+      schedulePersist();
+      return { ok: true, subPhase: state.night.subPhase };
+    }
+    return advanceNightPhase(hostPlayerId);
+  }
+  if (state.phase === "mayor_election") {
+    return hostSetMayor(hostPlayerId, null);
+  }
+  if (state.phase === "day" && state.day && state.day.status !== "decided") {
+    state.day.status = "decided";
+    state.day.eliminatedId = null;
+    state.phase = "result";
+    schedulePersist();
+    return { ok: true, phase: "result" };
+  }
+  return { ok: false, error: "invalid_phase" };
+}
 
 /**
  * Nachtaktion abgeben (Werwolf-Ziel, Seher-Ziel, Hexe Heil/Gift).
@@ -510,6 +608,22 @@ export function submitNightAction(playerId, payload) {
   const sub = state.night.subPhase;
   const actions = state.night.actions;
 
+  if (p.role === "amor" && sub === "amor") {
+    const lover1Id = payload?.lover1Id ?? payload?.targetId;
+    const lover2Id = payload?.lover2Id;
+    if (lover1Id && lover2Id && lover1Id !== lover2Id) {
+      const p1 = findPlayer(lover1Id);
+      const p2 = findPlayer(lover2Id);
+      if (p1?.isAlive && !p1?.isHost && p2?.isAlive && !p2?.isHost) {
+        state.night.actions.amor = state.night.actions.amor || {};
+        state.night.actions.amor.lover1Id = lover1Id;
+        state.night.actions.amor.lover2Id = lover2Id;
+        p1.inLove = true;
+        p2.inLove = true;
+      }
+    }
+    return { ok: true };
+  }
   if (p.isHost && sub === "werwolf") {
     const targetId = payload?.targetId ?? payload?.targetPlayerId;
     if (targetId && findPlayer(targetId)?.isAlive && targetId !== p.playerId)
@@ -530,11 +644,42 @@ export function submitNightAction(playerId, payload) {
     }
     return { ok: true };
   }
+  if (p.role === "baecker" && sub === "baecker") {
+    actions.baecker = actions.baecker || {};
+    const targetId = payload?.targetId ?? payload?.targetPlayerId;
+    if (targetId === null || targetId === undefined) {
+      actions.baecker.targetId = null;
+      actions.baecker.passed = true;
+      return { ok: true };
+    }
+    const target = findPlayer(targetId);
+    if (target && target.isAlive && !target.isHost) {
+      actions.baecker.targetId = targetId;
+      actions.baecker.passed = false;
+    }
+    return { ok: true };
+  }
   if (p.role === "hexe" && sub === "hexe") {
     const healId = payload?.healId ?? payload?.heal;
     const poisonId = payload?.poisonId ?? payload?.poison;
-    if (healId && findPlayer(healId)?.isAlive) actions.hexe.healId = healId;
-    if (poisonId && findPlayer(poisonId)?.isAlive) actions.hexe.poisonId = poisonId;
+    if (healId && poisonId) return { ok: false, error: "hexe_one_only" };
+    if (healId) {
+      if (state.witchUsedHeal) return { ok: false, error: "hexe_heal_used" };
+      if (findPlayer(healId)?.isAlive) {
+        actions.hexe.healId = healId;
+        actions.hexe.poisonId = null;
+      }
+    } else if (poisonId) {
+      if (state.witchUsedPoison) return { ok: false, error: "hexe_poison_used" };
+      if (findPlayer(poisonId)?.isAlive) {
+        actions.hexe.poisonId = poisonId;
+        actions.hexe.healId = null;
+      }
+    } else {
+      actions.hexe.healId = null;
+      actions.hexe.poisonId = null;
+      actions.hexe.passed = true;
+    }
     return { ok: true };
   }
   return { ok: false, error: "no_action" };
@@ -548,9 +693,10 @@ export function advanceNightPhase(hostPlayerId) {
   if (!host || (!host.isHost && !host.isAdmin)) return { ok: false, error: "not_host" };
   if (state.phase !== "night" || !state.night) return { ok: false, error: "invalid_phase" };
 
-  const idx = NIGHT_SUBPHASES.indexOf(state.night.subPhase);
-  if (idx < NIGHT_SUBPHASES.length - 1) {
-    state.night.subPhase = NIGHT_SUBPHASES[idx + 1];
+  const subphases = getNightSubphases();
+  const idx = subphases.indexOf(state.night.subPhase);
+  if (idx < subphases.length - 1) {
+    state.night.subPhase = subphases[idx + 1];
     schedulePersist();
     return { ok: true, subPhase: state.night.subPhase };
   }
@@ -560,8 +706,12 @@ export function advanceNightPhase(hostPlayerId) {
   let victimId = actions.werwolf?.targetId || null;
   const healId = state.night.actions.hexe?.healId;
   const poisonId = state.night.actions.hexe?.poisonId;
-  if (healId && victimId === healId) victimId = null;
+  if (healId && victimId === healId) {
+    victimId = null;
+    state.witchUsedHeal = true;
+  }
   if (poisonId) {
+    state.witchUsedPoison = true;
     const poisonVictim = findPlayer(poisonId);
     if (poisonVictim?.isAlive) {
       poisonVictim.isAlive = false;
@@ -580,10 +730,14 @@ export function advanceNightPhase(hostPlayerId) {
   state.phase = "day";
   state.day = {
     round: state.round,
+    status: "accusing",
+    accusations: {},
     votes: {},
     eliminatedId: null,
     runoffCandidates: null,
+    accusedIds: null,
     tieResolution: null,
+    silencedPlayerId: state.night.actions.baecker?.targetId || null,
   };
   schedulePersist();
   return { ok: true, phase: "day", victimId };
@@ -600,18 +754,51 @@ function addGameLog(round, phase, messageKey, playerName) {
 }
 
 /**
- * Tagesabstimmung: Stimme abgeben (nur lebende Spieler, ggf. nur Stichwahl-Kandidaten).
+ * Anklage abgeben (Phase "accusing"). Jeder lebende Nicht-Host kann eine Person anklagen oder niemanden.
+ */
+export function submitDayAccusation(playerId, targetPlayerId) {
+  if (state.phase !== "day" || !state.day || state.day.status !== "accusing") return { ok: false, error: "invalid_phase" };
+  const p = findPlayer(playerId);
+  if (!p || !p.isAlive) return { ok: false, error: "not_allowed" };
+  if (p.isHost) return { ok: false, error: "host_does_not_vote" };
+  if (state.day.silencedPlayerId === playerId) return { ok: false, error: "silenced" };
+  if (targetPlayerId === null || targetPlayerId === undefined) {
+    state.day.accusations[playerId] = null;
+    return { ok: true };
+  }
+  const target = findPlayer(targetPlayerId);
+  if (!target || !target.isAlive || target.isHost) return { ok: false, error: "invalid_target" };
+  state.day.accusations[playerId] = targetPlayerId;
+  return { ok: true };
+}
+
+/**
+ * Tagesabstimmung: Stimme abgeben (nur in Phase "voting"). Host darf nicht abstimmen. Stummgeschaltete können nicht abstimmen.
  */
 export function submitDayVote(playerId, targetPlayerId) {
   if (state.phase !== "day" || !state.day) return { ok: false, error: "invalid_phase" };
+  if (state.day.status === "accusing") return { ok: false, error: "still_accusing" };
   const p = findPlayer(playerId);
   if (!p || !p.isAlive) return { ok: false, error: "not_allowed" };
+  if (p.isHost) return { ok: false, error: "host_does_not_vote" };
+  if (state.day.silencedPlayerId === playerId) return { ok: false, error: "silenced" };
+  if (targetPlayerId === null || targetPlayerId === undefined) {
+    state.day.votes[playerId] = null;
+    return { ok: true };
+  }
   const target = findPlayer(targetPlayerId);
   if (!target || !target.isAlive) return { ok: false, error: "invalid_target" };
-  const candidates = state.day.runoffCandidates || state.players.filter((x) => x.isAlive).map((x) => x.playerId);
+  const candidates = getDayVoteCandidates();
   if (!candidates.includes(targetPlayerId)) return { ok: false, error: "invalid_target" };
   state.day.votes[playerId] = targetPlayerId;
   return { ok: true };
+}
+
+function getDayVoteCandidates() {
+  if (!state.day) return [];
+  if (state.day.status === "voting" && Array.isArray(state.day.accusedIds)) return state.day.accusedIds;
+  if (state.day.runoffCandidates && state.day.runoffCandidates.length > 0) return state.day.runoffCandidates;
+  return state.players.filter((x) => x.isAlive && !x.isHost).map((x) => x.playerId);
 }
 
 /**
@@ -619,14 +806,15 @@ export function submitDayVote(playerId, targetPlayerId) {
  * @returns { { eliminatedId: string | null, tie: boolean, runoff?: string[], needMayorElection?: boolean } }
  */
 function countDayVotes() {
-  const candidates = state.day.runoffCandidates || state.players.filter((p) => p.isAlive).map((p) => p.playerId);
+  const candidates = getDayVoteCandidates();
   const votes = state.day.votes;
   const mayor = state.players.find((p) => p.isMayor && p.isAlive);
   const count = {};
   for (const id of candidates) count[id] = 0;
   for (const voterId of Object.keys(votes)) {
+    if (state.day.silencedPlayerId === voterId) continue;
     const targetId = votes[voterId];
-    if (candidates.includes(targetId)) count[targetId] = (count[targetId] || 0) + 1;
+    if (targetId && candidates.includes(targetId)) count[targetId] = (count[targetId] || 0) + 1;
   }
   const maxVotes = Math.max(...Object.values(count), 0);
   const winners = Object.entries(count)
@@ -664,6 +852,26 @@ export function resolveDayPhase(hostPlayerId) {
     state.phase = "result";
     schedulePersist();
     return { ok: true, phase: "result", eliminatedId: state.day.eliminatedId };
+  }
+
+  if (state.day.status === "accusing") {
+    const accusedIds = [...new Set(Object.values(state.day.accusations).filter(Boolean))].filter(
+      (id) => findPlayer(id)?.isAlive && !findPlayer(id)?.isHost
+    );
+    state.day.accusedIds = accusedIds;
+    state.day.status = "voting";
+    state.day.votes = {};
+    schedulePersist();
+    return { ok: true, accusedIds };
+  }
+
+  const candidates = getDayVoteCandidates();
+  if (candidates.length === 0) {
+    state.day.status = "decided";
+    state.day.eliminatedId = null;
+    state.phase = "result";
+    schedulePersist();
+    return { ok: true, phase: "result", eliminatedId: null };
   }
 
   const result = countDayVotes();
@@ -714,7 +922,6 @@ export function resolveDayPhase(hostPlayerId) {
       state.day.eliminatedId = result.eliminatedId;
       addGameLog(state.round, "day", "lynch", eliminated.name);
 
-      // Check Kopfgeldjäger win condition immediately upon day vote death
       const kopfgeldjaeger = state.players.find(p => p.role === "kopfgeldjaeger");
       if (kopfgeldjaeger && kopfgeldjaeger.isAlive && state.day.votes[kopfgeldjaeger.playerId] === eliminated.playerId) {
         state.phase = "game_end";
@@ -722,13 +929,40 @@ export function resolveDayPhase(hostPlayerId) {
         schedulePersist();
         return { ok: true, decided: true, eliminatedId: result.eliminatedId, winner: "kopfgeldjaeger" };
       }
+
+      if (eliminated.role === "jaeger") {
+        state.phase = "jaeger_shot";
+        state.jaegerSourceId = result.eliminatedId;
+        schedulePersist();
+        return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId: result.eliminatedId };
+      }
     }
   }
 
   state.day.status = "decided";
   state.day.tieResolution = result.tie ? "mayor_decides" : null;
+  state.phase = "result";
   schedulePersist();
-  return { ok: true, decided: true, eliminatedId: result.eliminatedId };
+  return { ok: true, decided: true, phase: "result", eliminatedId: result.eliminatedId };
+}
+
+/**
+ * Host oder Admin: Jäger-Schuss ausführen (nach Tod des Jägers am Tag).
+ */
+export function submitJaegerKill(hostPlayerId, targetId) {
+  const host = findPlayer(hostPlayerId);
+  if (!host || (!host.isHost && !host.isAdmin)) return { ok: false, error: "not_host" };
+  if (state.phase !== "jaeger_shot" || !state.jaegerSourceId) return { ok: false, error: "invalid_phase" };
+  const target = findPlayer(targetId);
+  if (!target || !target.isAlive) return { ok: false, error: "invalid_target" };
+  target.isAlive = false;
+  state.day = state.day || {};
+  state.day.jaegerKillId = targetId;
+  addGameLog(state.round, "day", "jaeger_shot", target.name);
+  state.phase = "result";
+  state.jaegerSourceId = null;
+  schedulePersist();
+  return { ok: true, phase: "result", jaegerKillId: targetId };
 }
 
 /**
@@ -749,12 +983,7 @@ export function advanceFromResult(hostPlayerId) {
 
   state.round += 1;
   state.phase = "night";
-  state.night = {
-    round: state.round,
-    subPhase: "werwolf",
-    actions: { werwolf: { targetId: null }, seher: { targetId: null }, hexe: { healId: null, poisonId: null } },
-    victimId: null,
-  };
+  state.night = createNightState();
   state.day = null;
   schedulePersist();
   return { ok: true, phase: "night", round: state.round };
@@ -831,6 +1060,29 @@ export function forceUnban(targetPlayerId) {
     if (banData.ip) bans.ips.delete(banData.ip);
     bans.players.delete(targetPlayerId);
   }
+}
+
+/**
+ * Nach Spielende: Zurück in Lobby (Spieler bleiben, neues Spiel kann starten).
+ * Wird aufgerufen, wenn jemand nach game_end die Seite neu lädt oder neu beitritt.
+ */
+export function resetToLobbyAfterGameEnd() {
+  if (state.phase !== "game_end") return;
+  state.phase = "lobby";
+  state.mayorElection = null;
+  state.night = null;
+  state.day = null;
+  state.gameLog = [];
+  state.winner = null;
+  state.round = 0;
+  state.jaegerSourceId = null;
+  state.players.forEach((p) => {
+    p.role = null;
+    p.isAlive = true;
+    p.isMayor = false;
+    p.inLove = false;
+  });
+  schedulePersist();
 }
 
 /**

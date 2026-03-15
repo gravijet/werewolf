@@ -4,10 +4,11 @@ import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
 import { PhaseBar } from "../components/PhaseBar";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { t } from "../i18n/translations";
 
 export function MayorScreen({ lang }) {
-  const { state, me, emit } = useGame();
+  const { state, me, emit, leave } = useGame();
   const election = state?.mayorElection;
   const players = state?.players ?? [];
   const candidates = election?.candidateIds
@@ -28,10 +29,11 @@ export function MayorScreen({ lang }) {
   const totalVotes = Object.keys(votes).length;
   const voterCount = players.filter(p => !p.isHost).length;
   const [showConfirm, setShowConfirm] = React.useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = React.useState(false);
 
-  // Auto-evaluate when all have voted
+  // Auto-evaluate when all (non-host) have voted – nur bei status "voting", nicht bei Stichwahl
   React.useEffect(() => {
-    if (me?.isHost && totalVotes === voterCount && voterCount > 0 && election?.status === "voting") {
+    if (me?.isHost && election?.status === "voting" && voterCount > 0 && totalVotes === voterCount) {
       emit("mayor_phase_next");
     }
   }, [me?.isHost, totalVotes, voterCount, election?.status, emit]);
@@ -79,7 +81,7 @@ export function MayorScreen({ lang }) {
             const max = Math.max(...Object.values(voteCounts), 1);
             const isVoted = myVote === p.playerId;
             const hasVoted = myVote !== undefined && myVote !== null;
-            const votingFinished = election?.status === "decided" || election?.status === "tie_redo";
+            const votingFinished = election?.status === "decided";
             const canVote = !me?.isHost && !votingFinished && !hasVoted;
             const isLast = i === candidates.length - 1;
             
@@ -148,21 +150,38 @@ export function MayorScreen({ lang }) {
           })}
         </Card>
 
+        {me?.isHost && election?.status === "voting" && (
+          <Card variant="outlined" style={{ padding: "16px 20px", marginBottom: 24, background: "var(--md-sys-color-surface-container-low)", borderColor: "var(--md-sys-color-outline-variant)" }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Bürgermeister festlegen (ohne Abstimmung)</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <Button variant="tonal" small onClick={() => emit("host_set_mayor", { mayorPlayerId: null })} style={{ padding: "8px 14px" }}>
+                Niemand
+              </Button>
+              {candidates.map((p) => (
+                <Button key={p.playerId} variant="tonal" small onClick={() => emit("host_set_mayor", { mayorPlayerId: p.playerId })} style={{ padding: "8px 14px" }}>
+                  {p.name}
+                </Button>
+              ))}
+            </div>
+          </Card>
+        )}
         {totalVotes === voterCount && voterCount > 0 && (
           <span
             style={{
-              padding: "8px 16px",
-              borderRadius: "var(--r-pill)",
-              fontSize: 13,
+              padding: "10px 18px",
+              borderRadius: "var(--radius-lg)",
+              fontSize: 14,
               fontWeight: 700,
-              background: "var(--success-bg)",
-              color: "var(--success)",
-              display: "flex",
+              background: "var(--md-sys-color-primary-container)",
+              color: "var(--md-sys-color-on-primary-container)",
+              display: "inline-flex",
               alignItems: "center",
-              gap: 6
+              gap: 8,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+              border: "1px solid var(--md-sys-color-outline-variant)",
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>done_all</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>done_all</span>
             {t(lang, "full")}
           </span>
         )}
@@ -180,22 +199,39 @@ export function MayorScreen({ lang }) {
           flexDirection: "column",
           gap: 12
         }}>
-          <Button 
-            fullWidth 
-            onClick={() => {
-              if (totalVotes < voterCount) {
-                setShowConfirm(true);
-              } else {
-                emit("mayor_phase_next");
-              }
-            }} 
-            style={{ padding: "16px", fontSize: 16 }}
-          >
-            {t(lang, "showResult")}
-          </Button>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <Button 
+              variant="tonal" 
+              onClick={() => setShowLeaveConfirm(true)}
+              style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }}
+            >
+              {t(lang, "leaveRound")}
+            </Button>
+            <Button 
+              style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }}
+              onClick={() => {
+                if (totalVotes < voterCount) {
+                  setShowConfirm(true);
+                } else {
+                  emit("mayor_phase_next");
+                }
+              }}
+            >
+              {t(lang, "showResult")}
+            </Button>
+          </div>
         </footer>
       )}
 
+      <ConfirmModal
+        open={showLeaveConfirm}
+        title={t(lang, "leaveRound")}
+        message="Du bleibst angemeldet, wirst aber vom Spiel getrennt."
+        confirmLabel={t(lang, "leaveRound")}
+        cancelLabel="Abbrechen"
+        onConfirm={() => { setShowLeaveConfirm(false); leave(); }}
+        onCancel={() => setShowLeaveConfirm(false)}
+      />
       {showConfirm && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,

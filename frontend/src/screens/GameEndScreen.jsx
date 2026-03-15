@@ -7,6 +7,16 @@ export function GameEndScreen({ lang }) {
   const winner = state?.winner;
   
   const isVillage = winner === "village";
+  const isWerewolf = winner === "werwolf";
+  const isLovers = winner === "lovers";
+  const isKopfgeldjaeger = winner === "kopfgeldjaeger";
+
+  const bg = isVillage || isLovers ? "var(--md-sys-color-secondary-container)" : isKopfgeldjaeger ? "var(--md-sys-color-tertiary-container)" : "var(--md-sys-color-error-container)";
+  const fg = isVillage || isLovers ? "var(--md-sys-color-on-secondary-container)" : isKopfgeldjaeger ? "var(--md-sys-color-on-tertiary-container)" : "var(--md-sys-color-on-error-container)";
+  const accent = isVillage || isLovers ? "var(--md-sys-color-secondary)" : isKopfgeldjaeger ? "var(--md-sys-color-tertiary)" : "var(--md-sys-color-error)";
+  const accentOn = isVillage || isLovers ? "var(--md-sys-color-on-secondary)" : isKopfgeldjaeger ? "var(--md-sys-color-on-tertiary)" : "var(--md-sys-color-on-error)";
+
+  const winnerText = isVillage ? t(lang, "villageWins") : isWerewolf ? t(lang, "werewolvesWin") : isLovers ? (t(lang, "loversWin") || "Das Liebespaar gewinnt!") : isKopfgeldjaeger ? (t(lang, "kopfgeldjaegerWins") || "Der Kopfgeldjäger gewinnt!") : t(lang, "villageWins");
 
   return (
     <div
@@ -19,8 +29,8 @@ export function GameEndScreen({ lang }) {
         padding: "24px 16px",
         paddingTop: "max(24px, var(--safe-top))",
         paddingBottom: "max(24px, var(--safe-bottom))",
-        background: isVillage ? "var(--md-sys-color-secondary-container)" : "var(--md-sys-color-error-container)",
-        color: isVillage ? "var(--md-sys-color-on-secondary-container)" : "var(--md-sys-color-on-error-container)",
+        background: bg,
+        color: fg,
         textAlign: "center",
       }}
     >
@@ -31,8 +41,8 @@ export function GameEndScreen({ lang }) {
         width: 120, 
         height: 120, 
         borderRadius: "50%", 
-        background: isVillage ? "var(--md-sys-color-secondary)" : "var(--md-sys-color-error)",
-        color: isVillage ? "var(--md-sys-color-on-secondary)" : "var(--md-sys-color-on-error)",
+        background: accent,
+        color: accentOn,
         marginBottom: 32,
         boxShadow: "var(--shadow-3)"
       }}>
@@ -40,7 +50,7 @@ export function GameEndScreen({ lang }) {
       </div>
       <h1 style={{ fontSize: 40, fontWeight: 800, margin: "0 0 16px", letterSpacing: "-0.04em" }}>{t(lang, "gameEnd")}</h1>
       <p style={{ fontSize: 24, fontWeight: 600, margin: 0, letterSpacing: "-0.01em", opacity: 0.9 }}>
-        {isVillage ? t(lang, "villageWins") : t(lang, "werewolvesWin")}
+        {winnerText}
       </p>
     </div>
   );

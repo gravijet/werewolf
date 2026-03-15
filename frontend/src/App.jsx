@@ -7,10 +7,12 @@ import { MayorScreen } from "./screens/MayorScreen";
 import { NightScreen } from "./screens/NightScreen";
 import { DayScreen } from "./screens/DayScreen";
 import { ResultScreen } from "./screens/ResultScreen";
+import { JaegerShotScreen } from "./screens/JaegerShotScreen";
 import { GameEndScreen } from "./screens/GameEndScreen";
 import { DeadScreen } from "./screens/DeadScreen";
 import { AdminScreen } from "./screens/AdminScreen";
 import { Button } from "./components/Button";
+import { ConfirmModal } from "./components/ConfirmModal";
 
 function LanguageSwitcher({ lang, setLang }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -102,6 +104,7 @@ function LanguageSwitcher({ lang, setLang }) {
 function AppContent() {
   const [lang, setLang] = useState(() => getStoredLanguage());
   const [adminOpen, setAdminOpen] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const { state, me, error, setError, reconnecting, leave } = useGame();
 
   useEffect(() => {
@@ -149,7 +152,7 @@ function AppContent() {
   }
 
   const myPlayer = state?.players?.find((p) => p.playerId === me.playerId);
-  const iAmDead = myPlayer && !myPlayer.isAlive && myPlayer.role !== "moderator";
+  const iAmDead = myPlayer && !myPlayer.isAlive && myPlayer.role !== "moderator" && !myPlayer.isHost;
 
   if (adminOpen) {
     return <AdminScreen lang={lang} onClose={() => setAdminOpen(false)} />;
@@ -175,26 +178,53 @@ function AppContent() {
         return <DayScreen lang={lang} />;
       case "result":
         return <ResultScreen lang={lang} />;
+      case "jaeger_shot":
+        return <JaegerShotScreen lang={lang} />;
       default:
         return <LobbyScreen lang={lang} onOpenAdmin={() => setAdminOpen(true)} />;
     }
   })();
 
   const showLeaveButton = state?.phase && state.phase !== "lobby";
+  const hostHasFooter = me?.isHost && ["mayor_election", "night", "day", "result", "jaeger_shot"].includes(state?.phase);
+  const showGlobalLeave = showLeaveButton && !hostHasFooter;
+  const showHostAdmin = me?.isHost && state?.phase && state.phase !== "lobby";
 
   return (
     <>
       <LanguageSwitcher lang={lang} setLang={setLang} />
+      {showHostAdmin && (
+        <button
+          type="button"
+          onClick={() => setAdminOpen(true)}
+          aria-label="Einstellungen"
+          style={{
+            position: "fixed",
+            top: "max(16px, var(--safe-top))",
+            left: "max(16px, var(--safe-left))",
+            zIndex: 100,
+            width: 48,
+            height: 48,
+            borderRadius: "50%",
+            border: "none",
+            background: "var(--md-sys-color-surface-container)",
+            color: "var(--md-sys-color-on-surface)",
+            boxShadow: "var(--shadow-2)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 24 }}>settings</span>
+        </button>
+      )}
       {screen}
-      {showLeaveButton && (
+      {showGlobalLeave && (
         <div style={{ position: "fixed", bottom: "max(16px, var(--safe-bottom))", left: "50%", transform: "translateX(-50%)", zIndex: 100 }}>
           <Button
             variant="tonal"
-            onClick={() => {
-              if (window.confirm(t(lang, "leaveRound") + "? Du bleibst angemeldet, wirst aber vom Spiel getrennt.")) {
-                leave();
-              }
-            }}
+            onClick={() => setShowLeaveConfirm(true)}
             style={{
               padding: "10px 20px",
               fontSize: 14,
@@ -205,6 +235,15 @@ function AppContent() {
           </Button>
         </div>
       )}
+      <ConfirmModal
+        open={showLeaveConfirm}
+        title={t(lang, "leaveRound")}
+        message="Du bleibst angemeldet, wirst aber vom Spiel getrennt."
+        confirmLabel={t(lang, "leaveRound")}
+        cancelLabel="Abbrechen"
+        onConfirm={() => { setShowLeaveConfirm(false); leave(); }}
+        onCancel={() => setShowLeaveConfirm(false)}
+      />
       {error && (
         <div
           style={{

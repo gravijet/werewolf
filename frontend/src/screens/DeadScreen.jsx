@@ -49,7 +49,7 @@ export function DeadScreen({ lang }) {
               <Avatar name={p.name} size={56} style={{ margin: "0 auto 12px" }} />
               <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px", color: p.role === "werwolf" ? "var(--md-sys-color-on-error-container)" : "var(--md-sys-color-on-surface)", letterSpacing: "-0.01em" }}>{p.name}</p>
               <p style={{ fontSize: 13, color: p.role === "werwolf" ? "var(--md-sys-color-error)" : "var(--md-sys-color-on-surface-variant)", margin: 0, fontWeight: 600 }}>
-                {p.isMayor ? t(lang, "mayor") + " · " : ""}{t(lang, p.role) || p.role}
+                {p.isMayor ? t(lang, "mayor") + " · " : ""}{p.role ? (t(lang, p.role) || p.role) : "?"}
               </p>
             </Card>
           ))}
@@ -97,6 +97,7 @@ export function DeadScreen({ lang }) {
                   {entry.messageKey === "victim_werwolf" && `${entry.playerName} wurde von den Werwölfen getötet`}
                   {entry.messageKey === "victim_hexe" && `${entry.playerName} wurde vergiftet`}
                   {entry.messageKey === "lynch" && `${entry.playerName} wurde vom Dorf ausgewählt`}
+                  {entry.messageKey === "jaeger_shot" && `${entry.playerName} wurde vom Jäger mitgenommen`}
                 </span>
               </div>
             ))

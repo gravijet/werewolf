@@ -117,6 +117,26 @@ export function NightScreen({ lang }) {
           </div>
         )}
 
+        {myRole === "blinzelmaedchen" && subPhase === "werwolf" && actions.werwolf?.targetId && (() => {
+          const targetPlayer = (state?.players ?? []).find(p => p.playerId === actions.werwolf.targetId);
+          if (!targetPlayer) return null;
+          return (
+            <Card style={{ marginBottom: 24, padding: "16px 18px", background: "rgba(236,72,153,0.12)", border: "1px solid rgba(236,72,153,0.25)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span className="material-symbols-outlined" style={{ color: "#ec4899", fontSize: 26 }}>visibility</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                    Blinzelmädchen sieht: <strong>{targetPlayer.name}</strong>
+                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.4 }}>
+                    Du darfst dabei nichts tun – du kannst nur informieren.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          );
+        })()}
+
         {canAct && !hasActed && (
           <Card
             style={{

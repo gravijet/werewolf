@@ -282,11 +282,21 @@ export function DayScreen({ lang }) {
               </div>
             </Card>
           )}
+          {!isAccusing && day?.status === "voting" && (
+            <Button
+              variant="filled"
+              fullWidth
+              onClick={() => emit("phase_next")}
+              style={{ padding: "16px", fontSize: 16, fontWeight: 900, letterSpacing: "-0.01em", boxShadow: "var(--shadow-2)", marginBottom: 12 }}
+            >
+              Automatisch auswerten
+            </Button>
+          )}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button variant="tonal" onClick={() => setShowLeaveConfirm(true)} style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }}>
               {t(lang, "leaveRound")}
             </Button>
-            {day?.status !== "decided" && (
+            {day?.status === "voting" && (
               <Button variant="outlined" onClick={() => emit("host_skip_phase")} style={{ padding: "16px", fontSize: 16 }}>
                 Abstimmung überspringen
               </Button>

@@ -120,7 +120,12 @@ export function getState(viewerPlayerId = null) {
       const rawActions = state.night?.actions || {};
       outState.night.actions = {
         werwolf: {
-          targetId: (viewer?.role === 'werwolf' || viewer?.role === 'hexe') ? rawActions.werwolf?.targetId : null
+          targetId:
+            viewer?.role === "werwolf" ||
+            viewer?.role === "hexe" ||
+            (viewer?.role === "blinzelmaedchen" && outState.night?.subPhase === "werwolf")
+              ? rawActions.werwolf?.targetId
+              : null,
         },
         seher: { 
           targetId: viewer?.role === 'seher' ? rawActions.seher?.targetId : null,
@@ -493,6 +498,15 @@ export function finishMayorElection(hostPlayerId) {
   }
 
   if (winners.length > 1) {
+    // Wenn niemand gewählt hat (alle Stimmen = 0), gibt es keinen Bürgermeister,
+    // egal ob das ein erster Gleichstand oder eine Stichwahl ist.
+    if (maxVotes === 0) {
+      state.mayorElection.status = "decided";
+      state.mayorElection.mayorId = null;
+      state.players.forEach((p) => (p.isMayor = false));
+      schedulePersist();
+      return { ok: true, decided: true, mayorId: null };
+    }
     if (state.mayorElection.status === "tie_redo") {
       state.mayorElection.status = "decided";
       state.mayorElection.mayorId = null;
@@ -704,6 +718,7 @@ export function advanceNightPhase(hostPlayerId) {
   // Nacht beenden: Opfer ermitteln (Werwolf-Ziel, Hexe heilt/vergiftet)
   const actions = state.night.actions;
   let victimId = actions.werwolf?.targetId || null;
+  let jaegerKilledId = null;
   const healId = state.night.actions.hexe?.healId;
   const poisonId = state.night.actions.hexe?.poisonId;
   if (healId && victimId === healId) {
@@ -715,6 +730,7 @@ export function advanceNightPhase(hostPlayerId) {
     const poisonVictim = findPlayer(poisonId);
     if (poisonVictim?.isAlive) {
       poisonVictim.isAlive = false;
+      if (poisonVictim.role === "jaeger") jaegerKilledId = poisonVictim.playerId;
       addGameLog(state.round, "night", "victim_hexe", poisonVictim.name);
     }
   }
@@ -722,9 +738,18 @@ export function advanceNightPhase(hostPlayerId) {
     const victim = findPlayer(victimId);
     if (victim?.isAlive) {
       victim.isAlive = false;
+      if (victim.role === "jaeger") jaegerKilledId = victim.playerId;
       state.night.victimId = victimId;
       addGameLog(state.round, "night", "victim_werwolf", victim.name);
     }
+  }
+
+  // Wenn der Jäger in der Nacht stirbt, darf er direkt danach schießen.
+  if (jaegerKilledId) {
+    state.jaegerSourceId = jaegerKilledId;
+    state.phase = "jaeger_shot";
+    schedulePersist();
+    return { ok: true, phase: "jaeger_shot", jaegerShot: true, jaegerSourceId: jaegerKilledId };
   }
 
   state.phase = "day";
@@ -923,7 +948,9 @@ export function resolveDayPhase(hostPlayerId) {
       addGameLog(state.round, "day", "lynch", eliminated.name);
 
       const kopfgeldjaeger = state.players.find(p => p.role === "kopfgeldjaeger");
-      if (kopfgeldjaeger && kopfgeldjaeger.isAlive && state.day.votes[kopfgeldjaeger.playerId] === eliminated.playerId) {
+      // Kopfgeldjäger gewinnt, wenn er jemanden anklagt und dieser dann am Tag stirbt.
+      const kopfgeldTargetId = state.day?.accusations?.[kopfgeldjaeger?.playerId];
+      if (kopfgeldjaeger && kopfgeldjaeger.isAlive && kopfgeldTargetId === eliminated.playerId) {
         state.phase = "game_end";
         state.winner = "kopfgeldjaeger";
         schedulePersist();
@@ -956,9 +983,31 @@ export function submitJaegerKill(hostPlayerId, targetId) {
   const target = findPlayer(targetId);
   if (!target || !target.isAlive) return { ok: false, error: "invalid_target" };
   target.isAlive = false;
+  addGameLog(state.round, "day", "jaeger_shot", target.name);
+  const nightCase = !state.day;
+
+  if (nightCase) {
+    // Jäger ist nachts gestorben -> danach startet der Tag (Anklagen).
+    state.jaegerSourceId = null;
+    state.phase = "day";
+    state.day = {
+      round: state.round,
+      status: "accusing",
+      accusations: {},
+      votes: {},
+      eliminatedId: null,
+      runoffCandidates: null,
+      accusedIds: null,
+      tieResolution: null,
+      silencedPlayerId: state.night?.actions?.baecker?.targetId || null,
+    };
+    schedulePersist();
+    return { ok: true, phase: "day", jaegerKillId: targetId };
+  }
+
+  // Standard: Jäger starb am Tag und das Spiel geht in die Ergebnisphase.
   state.day = state.day || {};
   state.day.jaegerKillId = targetId;
-  addGameLog(state.round, "day", "jaeger_shot", target.name);
   state.phase = "result";
   state.jaegerSourceId = null;
   schedulePersist();
@@ -994,26 +1043,18 @@ export function advanceFromResult(hostPlayerId) {
  */
 function checkWinCondition() {
   const alive = state.players.filter((p) => p.isAlive);
-  
-  // Kopfgeldjäger-Sieg: Wenn das Spiel aus ist (z.B. Dorf oder Wölfe würden gewinnen) 
-  // ODER wenn der Kopfgeldjäger allein mit seinem Ziel lebt etc.
-  // Eigentlich triggert der Kopfgeldjäger-Sieg oft im Day-Phase-Resolve, wenn sein Ziel stirbt.
-  // Hier ein genereller Check:
-  const kopfgeldjaeger = alive.find(p => p.role === "kopfgeldjaeger");
-  const kopfgeldTarget = state.players.find(p => p.kopfgeldTarget); // Wenn wir ein Target gesetzt haben
-
   const werewolves = alive.filter((p) => p.role === "werwolf");
-  const others = alive.filter((p) => p.role !== "werwolf");
-  
-  // Liebespaar-Sieg
-  if (alive.length === 2) {
-    const isLover1 = alive[0].inLove;
-    const isLover2 = alive[1].inLove;
-    if (isLover1 && isLover2) return "lovers";
-  }
+  const nonWerewolves = alive.filter((p) => p.role !== "werwolf");
 
+  // Liebespaar-Sieg: nur wenn exakt diese 2 überleben und beide in Love sind.
+  if (alive.length === 2 && alive[0].inLove && alive[1].inLove) return "lovers";
+
+  // Werwölfe gewinnen, wenn sie die einzigen letzten Überlebenden sind.
+  if (nonWerewolves.length === 0) return "werwolf";
+
+  // Dorf gewinnt, wenn keine Werwölfe mehr leben (Liebespaar zählt dann als Dorf).
   if (werewolves.length === 0) return "village";
-  if (werewolves.length >= others.length) return "werwolf";
+
   return null;
 }
 

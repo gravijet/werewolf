@@ -199,6 +199,14 @@ export function MayorScreen({ lang }) {
           flexDirection: "column",
           gap: 12
         }}>
+          <Button
+            variant="filled"
+            fullWidth
+            onClick={() => emit("mayor_phase_next")}
+            style={{ padding: "16px", fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}
+          >
+            Automatisch auswerten
+          </Button>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button 
               variant="tonal" 

@@ -221,7 +221,7 @@ export function AdminScreen({ lang, onClose }) {
             {/* Rollen */}
             {(() => {
               const playerCount = players.filter((p) => !p.isHost).length;
-              const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen"];
+              const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker"];
               const totalRoles = roleIds.reduce((s, roleId) => {
                 const r = rules.roles?.[roleId] ?? {};
                 if (roleId === "werwolf" && r.count === "1/3") return s + Math.max(1, Math.floor(playerCount / 3));

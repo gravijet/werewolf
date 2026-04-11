@@ -53,22 +53,22 @@ export function NightScreen({ lang }) {
     <div
       style={{
         minHeight: "100dvh",
-        background: "#000000", // pure black for darker night feel
-        color: "#f8fafc",
+        background: "var(--md-sys-color-background)",
+        color: "var(--md-sys-color-on-background)",
         paddingBottom: "max(24px, env(safe-area-inset-bottom))",
         display: "flex",
         flexDirection: "column",
       }}
     >
       <header style={{ padding: "40px 20px 32px", textAlign: "center" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, borderRadius: "50%", background: "rgba(147,197,253,0.1)", marginBottom: 20 }}>
-          <span className="material-symbols-outlined" style={{ color: "#93c5fd", fontSize: 36 }}>dark_mode</span>
+        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, borderRadius: "50%", background: "var(--md-sys-color-primary-container)", marginBottom: 20 }}>
+          <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-on-primary-container)", fontSize: 36 }}>dark_mode</span>
         </div>
-        <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "rgba(147,197,253,0.5)", marginBottom: 8 }}>
+        <p style={{ fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>
           {t(lang, "round")} {state?.round ?? 1} · {t(lang, "night")}
         </p>
-        <h2 style={{ fontSize: 32, fontWeight: 800, margin: "0 8px 8px", letterSpacing: "-0.03em" }}>{t(lang, "nightTitle")}</h2>
-        <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(147,197,253,0.7)", marginTop: 0, letterSpacing: "-0.01em" }}>{t(lang, "nightCloseEyes")}</p>
+        <h2 style={{ fontSize: 32, fontWeight: 500, margin: "0 8px 8px", letterSpacing: "0" }}>{t(lang, "nightTitle")}</h2>
+        <p style={{ fontSize: 16, fontWeight: 400, color: "var(--md-sys-color-on-surface-variant)", marginTop: 0 }}>{t(lang, "nightCloseEyes")}</p>
       </header>
 
       <div style={{ flex: 1, padding: "0 20px" }}>
@@ -80,19 +80,19 @@ export function NightScreen({ lang }) {
               gap: 16,
               padding: "20px 24px",
               marginBottom: 24,
-              background: "rgba(59,130,246,0.1)",
-              border: "1px solid rgba(59,130,246,0.2)",
-              borderRadius: "var(--radius-lg)",
+              background: "var(--md-sys-color-secondary-container)",
+              border: "1px solid transparent",
+              borderRadius: "var(--radius-xl)",
               position: "relative",
             }}
           >
-            <span className="material-symbols-outlined" style={{ color: "#60a5fa", fontSize: 32, marginTop: 4 }}>masks</span>
+            <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 32, marginTop: 4 }}>masks</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#60a5fa", margin: "0 0 2px", letterSpacing: "-0.01em" }}>
+              <p style={{ fontSize: 20, fontWeight: 500, color: "var(--md-sys-color-on-secondary-container)", margin: "0 0 2px" }}>
                 {t(lang, myRole) || myRole}
               </p>
-              <p style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)", margin: "0 0 8px", letterSpacing: "0px" }}>{t(lang, "yourRole")}</p>
-              <p style={{ fontSize: 14, lineHeight: 1.5, color: "rgba(255,255,255,0.8)", margin: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 400, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 8px" }}>{t(lang, "yourRole")}</p>
+              <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--md-sys-color-on-surface)", margin: 0 }}>
                 {t(lang, `${myRole}_desc`)}
               </p>
             </div>
@@ -102,7 +102,7 @@ export function NightScreen({ lang }) {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "#60a5fa",
+                color: "var(--md-sys-color-primary)",
                 cursor: "pointer",
                 padding: 8,
                 borderRadius: "50%",
@@ -123,13 +123,13 @@ export function NightScreen({ lang }) {
           return (
             <Card style={{ marginBottom: 24, padding: "16px 18px", background: "rgba(236,72,153,0.12)", border: "1px solid rgba(236,72,153,0.25)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span className="material-symbols-outlined" style={{ color: "#ec4899", fontSize: 26 }}>visibility</span>
+                <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 26 }}>visibility</span>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                    Blinzelmädchen sieht: <strong>{targetPlayer.name}</strong>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--md-sys-color-on-surface)" }}>
+                    Beobachtet: <strong>{targetPlayer.name}</strong>
                   </p>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.4 }}>
-                    Du darfst dabei nichts tun – du kannst nur informieren.
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.4 }}>
+                    Keine Aktion in dieser Phase.
                   </p>
                 </div>
               </div>
@@ -141,21 +141,21 @@ export function NightScreen({ lang }) {
           <Card
             style={{
               padding: "28px 24px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              backdropFilter: "blur(16px)",
+              background: "var(--md-sys-color-surface)",
+              border: "1px solid transparent",
+              borderRadius: "var(--radius-xl)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24, color: "rgba(255,255,255,0.9)" }}>bolt</span>
-              <p style={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.02em", textTransform: "uppercase", color: "rgba(255,255,255,0.9)", margin: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24, color: "var(--md-sys-color-primary)" }}>bolt</span>
+              <p style={{ fontSize: 14, fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--md-sys-color-on-surface-variant)", margin: 0 }}>
                 {t(lang, "yourAction")}
               </p>
             </div>
             
             {me?.isHost && subPhase === "werwolf" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(255,255,255,0.8)", marginBottom: 20, letterSpacing: "-0.01em" }}>Wen fressen die Werwölfe diese Nacht?</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20, letterSpacing: "-0.01em" }}>Wer ist das Opfer?</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 32 }}>
                   {alive.filter(p => p.role !== "werwolf").map((p) => (
                     <button
@@ -166,9 +166,9 @@ export function NightScreen({ lang }) {
                       style={{
                         padding: "16px 12px",
                         borderRadius: "16px",
-                        border: `2px solid ${selectedTarget === p.playerId ? "#ef4444" : "rgba(255,255,255,0.1)"}`,
-                        background: selectedTarget === p.playerId ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.03)",
-                        color: "#fff",
+                        border: "1px solid transparent",
+                        background: selectedTarget === p.playerId ? "var(--md-sys-color-error-container)" : "var(--md-sys-color-surface-container-low)",
+                        color: "var(--md-sys-color-on-surface)",
                         fontSize: 15,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -186,7 +186,7 @@ export function NightScreen({ lang }) {
             
             {myRole === "seher" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(255,255,255,0.8)", marginBottom: 20, letterSpacing: "-0.01em" }}>Wen möchtest du beschauen?</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20, letterSpacing: "-0.01em" }}>Welche Person prüfst du?</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 32 }}>
                   {alive.map((p) => (
                     <button
@@ -197,9 +197,9 @@ export function NightScreen({ lang }) {
                       style={{
                         padding: "16px 12px",
                         borderRadius: "16px",
-                        border: `2px solid ${selectedTarget === p.playerId ? "#3b82f6" : "rgba(255,255,255,0.1)"}`,
-                        background: selectedTarget === p.playerId ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
-                        color: "#fff",
+                        border: "1px solid transparent",
+                        background: selectedTarget === p.playerId ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface-container-low)",
+                        color: "var(--md-sys-color-on-surface)",
                         fontSize: 15,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -221,16 +221,16 @@ export function NightScreen({ lang }) {
                   const victim = (state?.players ?? []).find(p => p.playerId === night.actions.werwolf.targetId);
                   return victim ? (
                     <div style={{ marginBottom: 24, padding: "14px 18px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>
-                        Opfer dieser Nacht: <strong>{victim.name}</strong>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface)", margin: 0 }}>
+                        Opfer der Werwölfe: <strong>{victim.name}</strong>
                       </p>
                     </div>
                   ) : null;
                 })()}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: "#10b981" }}>healing</span>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>
-                    Heilen (optional) {state?.witchUsedHeal ? "– bereits verbraucht" : "– 1× im Spiel"}
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: "var(--success)" }}>healing</span>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: "var(--md-sys-color-on-surface)", margin: 0 }}>
+                    {t(lang, "healOptional")} ({state?.witchUsedHeal ? t(lang, "alreadyUsed") : t(lang, "oncePerGame")})
                   </p>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
@@ -243,9 +243,9 @@ export function NightScreen({ lang }) {
                       style={{
                         padding: "14px 20px",
                         borderRadius: "16px",
-                        border: `2px solid ${hexeHeal === p.playerId ? "#10b981" : "rgba(255,255,255,0.1)"}`,
-                        background: hexeHeal === p.playerId ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.03)",
-                        color: "#fff",
+                        border: "1px solid transparent",
+                        background: hexeHeal === p.playerId ? "color-mix(in srgb, var(--success) 20%, white)" : "var(--md-sys-color-surface-container-low)",
+                        color: "var(--md-sys-color-on-surface)",
                         fontSize: 15,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -260,13 +260,13 @@ export function NightScreen({ lang }) {
                       {hexeHeal === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>}
                     </button>
                   ))}
-                  {state?.witchUsedHeal && <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Heiltrank bereits verbraucht.</span>}
+                  {state?.witchUsedHeal && <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>Heiltrank bereits verbraucht.</span>}
                 </div>
                 
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: "#ef4444" }}>science</span>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>
-                    Vergiften (optional) {state?.witchUsedPoison ? "– bereits verbraucht" : "– 1× im Spiel"}
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: "var(--md-sys-color-error)" }}>science</span>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: "var(--md-sys-color-on-surface)", margin: 0 }}>
+                    {t(lang, "poisonOptional")} ({state?.witchUsedPoison ? t(lang, "alreadyUsed") : t(lang, "oncePerGame")})
                   </p>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
@@ -279,9 +279,9 @@ export function NightScreen({ lang }) {
                       style={{
                         padding: "14px 20px",
                         borderRadius: "16px",
-                        border: `2px solid ${hexePoison === p.playerId ? "#ef4444" : "rgba(255,255,255,0.1)"}`,
-                        background: hexePoison === p.playerId ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.03)",
-                        color: "#fff",
+                        border: "1px solid transparent",
+                        background: hexePoison === p.playerId ? "var(--md-sys-color-error-container)" : "var(--md-sys-color-surface-container-low)",
+                        color: "var(--md-sys-color-on-surface)",
                         fontSize: 15,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -296,31 +296,31 @@ export function NightScreen({ lang }) {
                       {hexePoison === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>}
                     </button>
                   ))}
-                  {state?.witchUsedPoison && <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Gifttrank bereits verbraucht.</span>}
+                  {state?.witchUsedPoison && <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>Gifttrank bereits verbraucht.</span>}
                 </div>
               </>
             )}
 
             {myRole === "amor" && subPhase === "amor" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(255,255,255,0.8)", marginBottom: 16 }}>Wähle zwei Spieler, die sich verlieben sollen (Liebespaar).</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 16 }}>Wähle zwei Verliebte.</p>
                 <div style={{ marginBottom: 20 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: 8 }}>Erste Person</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>Erste Person</p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {alive.filter((p) => p.playerId !== amorLover2).map((p) => (
                       <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setAmorLover1(amorLover1 === p.playerId ? null : p.playerId)}
-                        style={{ padding: "12px 18px", borderRadius: 12, border: `2px solid ${amorLover1 === p.playerId ? "#ec4899" : "rgba(255,255,255,0.1)"}`, background: amorLover1 === p.playerId ? "rgba(236,72,153,0.2)" : "rgba(255,255,255,0.05)", color: "#fff", fontWeight: 600 }}>
+                        style={{ padding: "12px 18px", borderRadius: 12, border: "1px solid transparent", background: amorLover1 === p.playerId ? "var(--md-sys-color-tertiary-container)" : "var(--md-sys-color-surface-container-low)", color: "var(--md-sys-color-on-surface)", fontWeight: 600 }}>
                         {p.name}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: 8 }}>Zweite Person</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>Zweite Person</p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {alive.filter((p) => p.playerId !== amorLover1).map((p) => (
                       <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setAmorLover2(amorLover2 === p.playerId ? null : p.playerId)}
-                        style={{ padding: "12px 18px", borderRadius: 12, border: `2px solid ${amorLover2 === p.playerId ? "#ec4899" : "rgba(255,255,255,0.1)"}`, background: amorLover2 === p.playerId ? "rgba(236,72,153,0.2)" : "rgba(255,255,255,0.05)", color: "#fff", fontWeight: 600 }}>
+                        style={{ padding: "12px 18px", borderRadius: 12, border: "1px solid transparent", background: amorLover2 === p.playerId ? "var(--md-sys-color-tertiary-container)" : "var(--md-sys-color-surface-container-low)", color: "var(--md-sys-color-on-surface)", fontWeight: 600 }}>
                         {p.name}
                       </button>
                     ))}
@@ -331,17 +331,17 @@ export function NightScreen({ lang }) {
 
             {myRole === "baecker" && subPhase === "baecker" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "rgba(255,255,255,0.8)", marginBottom: 20 }}>Wem willst du diesmal das Maul stopfen? (Kann am Tag nicht abstimmen.)</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20 }}>Wer darf morgen nicht abstimmen?</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                   {alive.map((p) => (
                     <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setBaeckerTarget(baeckerTarget === p.playerId ? null : p.playerId)}
-                      style={{ padding: "14px 20px", borderRadius: 16, border: `2px solid ${baeckerTarget === p.playerId ? "#eab308" : "rgba(255,255,255,0.1)"}`, background: baeckerTarget === p.playerId ? "rgba(234,179,8,0.2)" : "rgba(255,255,255,0.03)", color: "#fff", fontWeight: 600 }}>
+                      style={{ padding: "14px 20px", borderRadius: 16, border: "1px solid transparent", background: baeckerTarget === p.playerId ? "var(--md-sys-color-secondary-container)" : "var(--md-sys-color-surface-container-low)", color: "var(--md-sys-color-on-surface)", fontWeight: 600 }}>
                       {p.name}
                       {baeckerTarget === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18, marginLeft: 6 }}>check_circle</span>}
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 12 }}>Optional: Niemanden wählen (Button unten ohne Auswahl klicken).</p>
+                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>Du kannst ohne Ziel fortfahren.</p>
               </>
             )}
             
@@ -351,9 +351,9 @@ export function NightScreen({ lang }) {
                 width: "100%",
                 padding: "18px 24px",
                 minHeight: 56,
-                background: (myRole === "hexe" && !hexeHeal && !hexePoison) ? "rgba(255,255,255,0.1)" : "#fafafa",
-                border: "none",
-                color: (myRole === "hexe" && !hexeHeal && !hexePoison) ? "#fff" : "#000",
+                background: (myRole === "hexe" && !hexeHeal && !hexePoison) ? "var(--md-sys-color-surface-container-high)" : "var(--md-sys-color-primary)",
+                border: "1px solid transparent",
+                color: (myRole === "hexe" && !hexeHeal && !hexePoison) ? "var(--md-sys-color-on-surface)" : "var(--md-sys-color-on-primary)",
                 fontSize: 16,
                 fontWeight: 700,
                 borderRadius: "var(--r-pill)",
@@ -373,10 +373,10 @@ export function NightScreen({ lang }) {
           <div
             style={{
               padding: "24px",
-              background: "rgba(16,185,129,0.1)",
-              border: "1px solid rgba(16,185,129,0.2)",
-              borderRadius: "var(--radius-lg)",
-              color: "#fff",
+            background: "color-mix(in srgb, var(--success) 16%, white)",
+            border: "1px solid transparent",
+            borderRadius: "var(--radius-lg)",
+            color: "var(--md-sys-color-on-surface)",
               textAlign: "center",
               display: "flex",
               flexDirection: "column",
@@ -384,30 +384,30 @@ export function NightScreen({ lang }) {
               gap: 16,
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 40, color: "#10b981" }}>check_circle</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 40, color: "var(--success)" }}>check_circle</span>
             <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em" }}>{t(lang, "actionConfirm")}</span>
             {myRole === "seher" && seherResultPlayer && (
               <div style={{ marginTop: 8, paddingTop: 16, borderTop: "1px solid rgba(16,185,129,0.2)", width: "100%" }}>
-                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", margin: "0 0 8px" }}>Dein Ergebnis für <strong>{seherResultPlayer.name}</strong>:</p>
+                  <p style={{ fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 8px" }}>Ergebnis für <strong>{seherResultPlayer.name}</strong>:</p>
                 {exactRole ? (
                   <p style={{ 
                     fontSize: 18, 
                     fontWeight: 700, 
-                    color: "#f8fafc",
+                    color: "var(--md-sys-color-on-surface)",
                     margin: 0,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 8
                   }}>
-                    <span className="material-symbols-outlined" style={{ color: "#3b82f6" }}>visibility</span>
+                    <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)" }}>visibility</span>
                     Rolle: {t(lang, exactRole) || exactRole}
                   </p>
                 ) : (
                   <p style={{ 
                     fontSize: 18, 
                     fontWeight: 700, 
-                    color: isTargetEvil ? "#ef4444" : "#3b82f6",
+                    color: isTargetEvil ? "var(--md-sys-color-error)" : "var(--md-sys-color-primary)",
                     margin: 0,
                     display: "flex",
                     alignItems: "center",
@@ -430,10 +430,9 @@ export function NightScreen({ lang }) {
             margin: "32px 20px 16px",
             padding: 24,
             paddingBottom: "max(24px, env(safe-area-inset-bottom))",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--md-sys-color-surface)",
+            border: "1px solid transparent",
             borderRadius: "var(--radius-lg)",
-            backdropFilter: "blur(12px)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
@@ -444,42 +443,42 @@ export function NightScreen({ lang }) {
               </span>
             </span>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => speakCurrent()} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }} title={t(lang, "readAloud")}>
+              <button type="button" onClick={() => speakCurrent()} style={{ padding: "8px 16px", borderRadius: 999, border: "1px solid transparent", background: "var(--md-sys-color-surface)", color: "var(--md-sys-color-on-surface)", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, boxShadow: "var(--shadow-1)" }} title={t(lang, "readAloud")}>
                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>volume_up</span>
                 {t(lang, "playAudio")}
               </button>
-              <Button variant="tonal" onClick={() => emit("host_skip_phase")} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.3)" }}>
+              <Button variant="tonal" onClick={() => emit("host_skip_phase")} style={{ padding: "8px 16px" }}>
                 Phase überspringen
               </Button>
             </div>
           </div>
           {subPhase === "werwolf" && actions.werwolf?.targetId && (
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", margin: "0 0 12px" }}>Werwölfe: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Werwölfe: bereit</p>
           )}
           {subPhase === "seher" && (state?.players ?? []).filter(p => p.role === "seher" && p.isAlive).some(p => actions.seher?.targetId) && (
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", margin: "0 0 12px" }}>Seher: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Seher: bereit</p>
           )}
           {subPhase === "hexe" && (actions.hexe?.healId || actions.hexe?.poisonId || actions.hexe?.passed) && (
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", margin: "0 0 12px" }}>Hexe: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Hexe: bereit</p>
           )}
           {subPhase === "amor" && (actions.amor?.lover1Id && actions.amor?.lover2Id) && (
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", margin: "0 0 12px" }}>Amor: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Amor: bereit</p>
           )}
           {subPhase === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed) && (
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", margin: "0 0 12px" }}>Bäcker: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Bäcker: bereit</p>
           )}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button
               variant="tonal"
               onClick={() => leave()}
-              style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16, fontWeight: 600, background: "rgba(255,255,255,0.1)", color: "#fff" }}
+              style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15, fontWeight: 600 }}
             >
               {t(lang, "leaveRound")}
             </Button>
             <Button
               variant="filled"
               onClick={() => emit("phase_next")}
-              style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16, fontWeight: 600 }}
+              style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15, fontWeight: 600 }}
             >
               {t(lang, "nextPhase")}
             </Button>

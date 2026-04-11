@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { t } from "../i18n/translations";
-import { getStoredLanguage, setStoredLanguage } from "../i18n/translations";
+import { setStoredLanguage } from "../i18n/translations";
 
 export function JoinScreen({ lang, setLang }) {
   const { join, joinError, setJoinError, state, me } = useGame();
@@ -42,12 +42,12 @@ export function JoinScreen({ lang, setLang }) {
     e.preventDefault();
     if (isNoPassword) {
       if (!playerName.trim()) {
-        setJoinError("Bitte gib einen Namen ein.");
+        setJoinError(t(lang, "noNameProvided"));
         return;
       }
-      join(playerName.trim(), "JUGENDINNSBRUCK");
+      join(playerName.trim(), "WOLFGAME");
     } else {
-      join(playerName.trim() || "Spieler", password);
+      join(playerName.trim() || "Unbekannt", password);
     }
   };
 
@@ -62,10 +62,10 @@ export function JoinScreen({ lang, setLang }) {
         alignItems: "center",
         justifyContent: "center",
         padding: "24px",
-        paddingLeft: "max(24px, var(--safe-left))",
-        paddingRight: "max(24px, var(--safe-right))",
-        paddingTop: "max(24px, var(--safe-top))",
-        background: "var(--md-sys-color-background)",
+        paddingLeft: "max(20px, var(--safe-left))",
+        paddingRight: "max(34px, var(--safe-right))",
+        paddingTop: "max(34px, var(--safe-top))",
+        background: "transparent",
         gap: 32,
       }}
     >
@@ -77,30 +77,32 @@ export function JoinScreen({ lang, setLang }) {
             setLang(e.target.value);
           }}
           style={{
-            padding: "8px 12px",
-            borderRadius: "var(--radius)",
-            border: "1px solid var(--md-sys-color-outline-variant)",
+            padding: "10px 14px",
+            borderRadius: 20,
+            border: "1px solid transparent",
             background: "var(--md-sys-color-surface)",
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 500,
             color: "var(--md-sys-color-on-surface)",
             cursor: "pointer",
             outline: "none",
+            boxShadow: "var(--shadow-1)",
           }}
         >
           <option value="de">DE</option>
           <option value="en">EN</option>
+          <option value="sv">SV</option>
         </select>
       </div>
 
-      <div style={{ textAlign: "center", marginBottom: 0 }}>
+      <div style={{ textAlign: "center", marginBottom: 6, maxWidth: 540 }}>
         <h1
           style={{
-            fontSize: 40,
-            fontWeight: 800,
+            fontSize: 42,
+            fontWeight: 500,
             color: "var(--md-sys-color-on-surface)",
             marginBottom: 0,
-            letterSpacing: "-0.04em",
+              letterSpacing: "-0.01em",
           }}
         >
           {t(lang, "appTitle")}
@@ -109,9 +111,9 @@ export function JoinScreen({ lang, setLang }) {
           <p
             style={{
               fontSize: 18,
-              fontWeight: 500,
+              fontWeight: 400,
               color: "var(--md-sys-color-on-surface-variant)",
-              marginTop: 8,
+            marginTop: 10,
               marginBottom: 0,
               letterSpacing: "-0.01em",
             }}
@@ -121,7 +123,7 @@ export function JoinScreen({ lang, setLang }) {
         )}
       </div>
 
-      <Card style={{ width: "100%", maxWidth: 380, padding: "32px 28px" }}>
+      <Card style={{ width: "100%", maxWidth: 460, padding: "40px 36px 34px" }}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Input
             label={t(lang, "yourName")}
@@ -158,7 +160,7 @@ export function JoinScreen({ lang, setLang }) {
               {joinError}
             </div>
           )}
-          <Button type="submit" fullWidth style={{ marginTop: 8, padding: "16px", fontSize: 16 }}>
+          <Button type="submit" fullWidth style={{ marginTop: 10, padding: "16px", fontSize: 16 }}>
             {t(lang, "joinBtn")}
           </Button>
         </form>
@@ -168,12 +170,12 @@ export function JoinScreen({ lang, setLang }) {
         <div
           style={{
             width: "100%",
-            maxWidth: 380,
+            maxWidth: 420,
             marginTop: 0,
             padding: "16px 20px",
             background: "var(--md-sys-color-secondary-container)",
             color: "var(--md-sys-color-on-secondary-container)",
-            borderRadius: "var(--radius-lg)",
+            borderRadius: "var(--radius-xl)",
             fontSize: 15,
             fontWeight: 600,
             display: "flex",

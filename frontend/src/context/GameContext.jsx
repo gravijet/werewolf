@@ -57,7 +57,7 @@ export function GameProvider({ children }) {
       } else if (stored?.playerName && stored?.password && !isNoPassword) {
         s.emit("join", { playerName: stored.playerName, password: stored.password });
       } else if (isNoPassword && stored?.playerName) {
-        s.emit("join", { playerName: stored.playerName, password: stored?.password || "JUGENDINNSBRUCK" });
+        s.emit("join", { playerName: stored.playerName, password: stored?.password || "WOLFGAME" });
       }
     });
     s.on("disconnect", () => {
@@ -71,8 +71,19 @@ export function GameProvider({ children }) {
       setState(payload);
       if (meRef.current && payload?.players) {
         const self = payload.players.find((p) => p.playerId === meRef.current.playerId);
-        if (self)
-          setMe((prev) => (prev ? { ...prev, isHost: self.isHost, isAdmin: self.isAdmin, canChangeName: self.canChangeName } : prev));
+        if (self) {
+          setMe((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  name: self.name ?? prev.name,
+                  isHost: self.isHost,
+                  isAdmin: self.isAdmin,
+                  canChangeName: self.canChangeName,
+                }
+              : prev
+          );
+        }
       }
     });
     s.on("joined", (payload) => {
@@ -108,9 +119,9 @@ export function GameProvider({ children }) {
           clearStoredPlayer();
         }
         
-        setLastJoinError(code, payload?.message || (code === "banned" ? "Du wurdest aus dem Raum ausgewiesen." : "Du wurdest aus dem Raum entfernt."));
+        setLastJoinError(code, payload?.message || (code === "banned" ? "Du bist für diesen Raum gesperrt." : "Du wurdest aus der laufenden Runde entfernt."));
         setMe(null);
-        setJoinError(payload?.message || (code === "banned" ? "Du wurdest aus dem Raum ausgewiesen." : "Du wurdest aus dem Raum entfernt."));
+        setJoinError(payload?.message || (code === "banned" ? "Du bist für diesen Raum gesperrt." : "Du wurdest aus der laufenden Runde entfernt."));
         s.disconnect();
         return;
       }
@@ -163,14 +174,18 @@ export function GameProvider({ children }) {
       if (!socket) return;
       setJoinError(null);
       const stored = getStoredPlayer();
-      const name = (playerName || "").trim() || "Spieler";
+      const name = (playerName || "").trim() || "Unbekannt";
       setStoredPlayer({ ...stored, playerName: name, password: password || undefined });
-      socket.emit("join", {
+      const payload = {
         playerName: name,
         password,
         playerId: stored?.playerId ?? undefined,
         reconnectToken: stored?.reconnectToken ?? undefined,
-      });
+      };
+      if (!socket.connected) {
+        socket.connect();
+      }
+      socket.emit("join", payload);
     },
     [socket]
   );
@@ -183,12 +198,21 @@ export function GameProvider({ children }) {
   );
 
   const leave = useCallback(() => {
-    // Wenn der Nutzer "Runde verlassen" klickt,
-    // bleibt er eingeloggt. Wir trennen nur die aktive Verbindung temporär.
-    // Ein Seiten-Neuladen würde ihn automatisch wieder verbinden.
+    // Beim Verlassen der Runde behalten wir nur den Namen lokal.
+    // Reconnect-Identität wird bewusst verworfen, um saubere Neueinwahl zu erzwingen.
     setMe(null);
     setJoinError(null);
     setError(null);
+    const stored = getStoredPlayer();
+    if (stored) {
+      setStoredPlayer({
+        playerName: stored.playerName ?? null,
+        password: null,
+        playerId: null,
+        reconnectToken: null,
+        canChangeName: true,
+      });
+    }
     if (socket) {
       socket.disconnect();
     }

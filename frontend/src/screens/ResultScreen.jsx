@@ -43,7 +43,7 @@ export function ResultScreen({ lang }) {
             <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--md-sys-color-tertiary)" }}>sports_martial_arts</span>
             <div>
               <p style={{ fontSize: 18, fontWeight: 700, color: "var(--md-sys-color-on-tertiary-container)", margin: 0, letterSpacing: "-0.01em" }}>
-                {jaegerKill.name} wurde vom Jäger mitgenommen
+                {jaegerKill.name} wurde vom Jaeger getroffen
               </p>
             </div>
           </div>
@@ -90,10 +90,10 @@ export function ResultScreen({ lang }) {
           borderTop: "1px solid var(--md-sys-color-outline-variant)",
         }}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Button variant="tonal" onClick={() => leave()} style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }}>
+            <Button variant="tonal" onClick={() => leave()} style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15 }}>
               {t(lang, "leaveRound")}
             </Button>
-            <Button style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }} onClick={() => emit("phase_next")}>
+            <Button variant="filled" style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15 }} onClick={() => emit("phase_next")}>
               {t(lang, "nextRound")}
             </Button>
           </div>

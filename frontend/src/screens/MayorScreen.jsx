@@ -27,16 +27,9 @@ export function MayorScreen({ lang }) {
   }, [candidates, votes]);
 
   const totalVotes = Object.keys(votes).length;
-  const voterCount = players.filter(p => !p.isHost).length;
+  const voterCount = players.filter((p) => !p.isHost && p.isAlive && p.isConnected).length;
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = React.useState(false);
-
-  // Auto-evaluate when all (non-host) have voted – nur bei status "voting", nicht bei Stichwahl
-  React.useEffect(() => {
-    if (me?.isHost && election?.status === "voting" && voterCount > 0 && totalVotes === voterCount) {
-      emit("mayor_phase_next");
-    }
-  }, [me?.isHost, totalVotes, voterCount, election?.status, emit]);
 
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
@@ -80,9 +73,9 @@ export function MayorScreen({ lang }) {
             const count = voteCounts[p.playerId] ?? 0;
             const max = Math.max(...Object.values(voteCounts), 1);
             const isVoted = myVote === p.playerId;
-            const hasVoted = myVote !== undefined && myVote !== null;
+            const hasVoted = myVote !== undefined && myVote !== null && election?.status !== "tie_redo";
             const votingFinished = election?.status === "decided";
-            const canVote = !me?.isHost && !votingFinished && !hasVoted;
+            const canVote = !me?.isHost && !votingFinished && !hasVoted && election?.candidateIds?.includes(p.playerId);
             const isLast = i === candidates.length - 1;
             
             return (
@@ -152,10 +145,10 @@ export function MayorScreen({ lang }) {
 
         {me?.isHost && election?.status === "voting" && (
           <Card variant="outlined" style={{ padding: "16px 20px", marginBottom: 24, background: "var(--md-sys-color-surface-container-low)", borderColor: "var(--md-sys-color-outline-variant)" }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Bürgermeister festlegen (ohne Abstimmung)</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "hostSetMayorDirect")}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               <Button variant="tonal" small onClick={() => emit("host_set_mayor", { mayorPlayerId: null })} style={{ padding: "8px 14px" }}>
-                Niemand
+                {t(lang, "noOne")}
               </Button>
               {candidates.map((p) => (
                 <Button key={p.playerId} variant="tonal" small onClick={() => emit("host_set_mayor", { mayorPlayerId: p.playerId })} style={{ padding: "8px 14px" }}>
@@ -205,18 +198,19 @@ export function MayorScreen({ lang }) {
             onClick={() => emit("mayor_phase_next")}
             style={{ padding: "16px", fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}
           >
-            Automatisch auswerten
+            {t(lang, "evaluateNow")}
           </Button>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button 
               variant="tonal" 
               onClick={() => setShowLeaveConfirm(true)}
-              style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }}
+              style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15 }}
             >
               {t(lang, "leaveRound")}
             </Button>
             <Button 
-              style={{ flex: 1, minWidth: 120, padding: "16px", fontSize: 16 }}
+              variant="outlined"
+              style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15 }}
               onClick={() => {
                 if (totalVotes < voterCount) {
                   setShowConfirm(true);
@@ -225,7 +219,7 @@ export function MayorScreen({ lang }) {
                 }
               }}
             >
-              {t(lang, "showResult")}
+              {t(lang, "showResultNow")}
             </Button>
           </div>
         </footer>
@@ -234,39 +228,24 @@ export function MayorScreen({ lang }) {
       <ConfirmModal
         open={showLeaveConfirm}
         title={t(lang, "leaveRound")}
-        message="Du bleibst angemeldet, wirst aber vom Spiel getrennt."
+        message={t(lang, "leaveRoundHint")}
         confirmLabel={t(lang, "leaveRound")}
-        cancelLabel="Abbrechen"
+        cancelLabel={t(lang, "closeLabel")}
         onConfirm={() => { setShowLeaveConfirm(false); leave(); }}
         onCancel={() => setShowLeaveConfirm(false)}
       />
-      {showConfirm && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000, padding: 20
-        }}>
-          <Card style={{ maxWidth: 400, width: "100%", padding: 24 }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 20, color: "var(--md-sys-color-on-surface)" }}>
-              Auswerten?
-            </h3>
-            <p style={{ margin: "0 0 24px", color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.5 }}>
-              Es haben noch nicht alle Spieler abgestimmt. Willst du die Wahl trotzdem jetzt beenden und auswerten?
-            </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <Button variant="text" onClick={() => setShowConfirm(false)}>
-                Abbrechen
-              </Button>
-              <Button onClick={() => {
-                setShowConfirm(false);
-                emit("mayor_phase_next");
-              }}>
-                Auswerten
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <ConfirmModal
+        open={showConfirm}
+        title={t(lang, "evaluateVoteNowTitle")}
+        message={t(lang, "evaluateVoteNowMessage")}
+        confirmLabel={t(lang, "evaluateVoteNowConfirm")}
+        cancelLabel={t(lang, "closeLabel")}
+        onConfirm={() => {
+          setShowConfirm(false);
+          emit("mayor_phase_next");
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

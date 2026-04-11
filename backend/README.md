@@ -1,4 +1,4 @@
-# Werwolf Jugend – Backend
+# Werwolf – Backend
 
 Node.js (Express) + Socket.io für einen einzigen aktiven Spielraum. Spielzustand nur im Speicher (kein persistenter Store).
 
@@ -37,8 +37,8 @@ Alle Clients verbinden sich mit demselben Raum. Siehe `docs/game-state-and-event
 
 ### Passwörter & Umgebung
 
-- Spieler: `JUGENDINNSBRUCK` (überschreibbar mit `PLAYER_PASSWORD`)
-- Admin: `JUGENDADMIN` (überschreibbar mit `ADMIN_PASSWORD`)
+- Spieler: `WOLFGAME` (überschreibbar mit `PLAYER_PASSWORD`)
+- Admin: `WOLFGAMEADMIN` (überschreibbar mit `ADMIN_PASSWORD`)
 
 Optional: `.env` im Ordner `backend/` anlegen (wird via `dotenv` geladen). Siehe `.env.example`.
 

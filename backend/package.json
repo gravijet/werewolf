@@ -1,7 +1,7 @@
 {
-  "name": "werwolf-jugend-backend",
+  "name": "werwolf-backend",
   "version": "1.0.0",
-  "description": "Backend für Werwolf Jugend – Echtzeit-Spielraum",
+  "description": "Backend für Werwolf – Echtzeit-Spielraum",
   "type": "module",
   "main": "src/server.js",
   "scripts": {

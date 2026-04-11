@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 
 const variants = {
   filled: {
@@ -7,14 +7,14 @@ const variants = {
     border: "1px solid transparent",
   },
   tonal: {
-    background: "var(--md-sys-color-secondary-container)",
-    color: "var(--md-sys-color-on-secondary-container)",
+    background: "var(--md-sys-color-surface)",
+    color: "var(--md-sys-color-on-surface)",
     border: "1px solid transparent",
   },
   outlined: {
-    background: "transparent",
+    background: "var(--md-sys-color-surface)",
     color: "var(--md-sys-color-primary)",
-    border: "1px solid var(--md-sys-color-outline)",
+    border: "1px solid transparent",
   },
   text: {
     background: "transparent",
@@ -38,60 +38,41 @@ export function Button({
   disabled = false,
   ...rest
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isActive, setIsActive] = useState(false);
-
   const resolved = variant === "ghost" ? "tonal" : variant === "secondary" ? "outlined" : variant;
   const v = variants[resolved] ?? variants.filled;
-
-  // Modern hover effects
-  let currentBg = v.background;
-  let currentColor = v.color;
-  let currentBorder = v.border;
-
-  if (disabled) {
-    currentBg = "var(--md-sys-color-surface-variant)";
-    currentColor = "var(--md-sys-color-on-surface-variant)";
-    currentBorder = "1px solid transparent";
-  } else if (isHovered && resolved === "filled") {
-    currentBg = "var(--accent-hover)";
-  } else if (isHovered && resolved === "outlined") {
-    currentBg = "var(--md-sys-color-surface-variant)";
-  } else if (isHovered && resolved === "tonal") {
-    currentBg = "var(--md-sys-color-surface-variant)";
-  } else if (isHovered && resolved === "text") {
-    currentBg = "var(--md-sys-color-surface-variant)";
-  }
 
   return (
     <button
       type={rest.type || "button"}
-      className={className}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => { setIsHovered(false); setIsActive(false); }}
-      onMouseDown={() => setIsActive(true)}
-      onMouseUp={() => setIsActive(false)}
+      className={`md-state-layer ${className}`.trim()}
       disabled={disabled}
       style={{
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        padding: small ? "8px 16px" : "12px 24px",
+        padding: small ? "8px 16px" : "12px 26px",
         minHeight: small ? 40 : "var(--touch)",
-        border: currentBorder,
-        borderRadius: "var(--r-pill)",
-        background: currentBg,
-        color: currentColor,
+        border: disabled ? "1px solid transparent" : v.border,
+        borderRadius: 999,
+        background: disabled ? "var(--md-sys-color-surface-container-high)" : v.background,
+        color: disabled ? "var(--md-sys-color-on-surface-variant)" : v.color,
         fontFamily: "inherit",
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: 600,
-        letterSpacing: "-0.01em",
+        letterSpacing: "0.01em",
         cursor: disabled ? "not-allowed" : "pointer",
         width: fullWidth ? "100%" : undefined,
-        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-        transform: isActive && !disabled ? "scale(0.97)" : "scale(1)",
-        opacity: disabled ? 0.6 : 1,
+        transition: "background-color 160ms var(--motion-standard), color 160ms var(--motion-standard), border-color 160ms var(--motion-standard), box-shadow 220ms var(--motion-standard), transform 160ms var(--motion-standard)",
+        boxShadow: disabled
+          ? "none"
+          : resolved === "filled"
+            ? "var(--shadow-2)"
+            : resolved === "tonal"
+              ? "var(--shadow-1)"
+              : "var(--shadow-1)",
+        transform: disabled ? "none" : "translateY(0)",
+        opacity: disabled ? 0.5 : 1,
         ...style,
       }}
       {...rest}

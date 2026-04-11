@@ -13,9 +13,26 @@ import { DeadScreen } from "./screens/DeadScreen";
 import { AdminScreen } from "./screens/AdminScreen";
 import { Button } from "./components/Button";
 import { ConfirmModal } from "./components/ConfirmModal";
+import { Snackbar } from "./components/Snackbar";
 
 function LanguageSwitcher({ lang, setLang }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)").matches : true
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const media = window.matchMedia("(max-width: 768px)");
+    const onChange = (event) => setIsMobile(event.matches);
+    setIsMobile(media.matches);
+    if (media.addEventListener) media.addEventListener("change", onChange);
+    else media.addListener(onChange);
+    return () => {
+      if (media.removeEventListener) media.removeEventListener("change", onChange);
+      else media.removeListener(onChange);
+    };
+  }, []);
 
   const languages = [
     { code: "de", label: "DE" },
@@ -24,23 +41,31 @@ function LanguageSwitcher({ lang, setLang }) {
   ];
 
   return (
-    <div style={{ position: "fixed", top: 16, right: 80, zIndex: 1000 }}>
+    <div
+      style={{
+        position: "fixed",
+        top: isMobile ? "auto" : "max(12px, var(--safe-top))",
+        bottom: isMobile ? "max(14px, var(--safe-bottom))" : "auto",
+        right: isMobile ? "max(14px, var(--safe-right))" : "72px",
+        zIndex: 1000,
+      }}
+    >
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
           background: "var(--md-sys-color-surface)",
           color: "var(--md-sys-color-on-surface)",
-          border: "1px solid var(--md-sys-color-outline-variant)",
-          padding: "8px 12px",
-          borderRadius: 8,
+          border: "1px solid var(--md-sys-color-outline)",
+          padding: "10px 14px",
+          borderRadius: 20,
           fontSize: 14,
-          fontWeight: 600,
+          fontWeight: 500,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           gap: 6,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          transition: "all 0.2s"
+          boxShadow: "var(--shadow-2)",
+          transition: "all 0.24s ease"
         }}
       >
         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>language</span>
@@ -49,21 +74,22 @@ function LanguageSwitcher({ lang, setLang }) {
 
       {isOpen && (
         <>
-          <div 
+          <div
             style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} 
             onClick={() => setIsOpen(false)} 
           />
           <div
             style={{
               position: "absolute",
-              top: "100%",
+              top: isMobile ? "auto" : "100%",
+              bottom: isMobile ? "calc(100% + 8px)" : "auto",
               right: 0,
-              marginTop: 8,
+              marginTop: isMobile ? 0 : 8,
               background: "var(--md-sys-color-surface)",
-              border: "1px solid var(--md-sys-color-outline-variant)",
-              borderRadius: 12,
-              padding: 4,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              border: "1px solid var(--md-sys-color-outline)",
+              borderRadius: 20,
+              padding: 6,
+              boxShadow: "var(--shadow-2)",
               zIndex: 1000,
               minWidth: 100
             }}
@@ -84,11 +110,11 @@ function LanguageSwitcher({ lang, setLang }) {
                   background: lang === l.code ? "var(--md-sys-color-secondary-container)" : "transparent",
                   color: lang === l.code ? "var(--md-sys-color-on-secondary-container)" : "var(--md-sys-color-on-surface)",
                   border: "none",
-                  borderRadius: 8,
+                  borderRadius: 14,
                   fontSize: 14,
                   fontWeight: lang === l.code ? 700 : 500,
                   cursor: "pointer",
-                  transition: "background 0.2s"
+                  transition: "background 0.24s"
                 }}
               >
                 {l.label}
@@ -117,36 +143,16 @@ function AppContent() {
   if (!me) {
     if (reconnecting) {
       return (
-        <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--white)", flexDirection: "column", gap: 16 }}>
+        <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--md-sys-color-background)", flexDirection: "column", gap: 16 }}>
           <div style={{ width: 48, height: 48, border: "3px solid var(--blue)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-          <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Verbinde wieder …</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t(lang, "reconnecting")}.</p>
         </div>
       );
     }
     return (
       <>
         <JoinScreen lang={lang} setLang={setLang} />
-        {error && (
-          <div
-            style={{
-              position: "fixed",
-              bottom: 24,
-              left: 20,
-              right: 20,
-              maxWidth: 400,
-              margin: "0 auto",
-              padding: "14px 20px",
-              background: "var(--error-bg)",
-              color: "var(--error)",
-              border: "2px solid var(--error)",
-              borderRadius: "var(--radius-lg)",
-              fontSize: 14,
-              zIndex: 9999,
-            }}
-          >
-            {error}
-          </div>
-        )}
+        <Snackbar open={Boolean(error)} message={error} tone="error" />
       </>
     );
   }
@@ -189,6 +195,7 @@ function AppContent() {
   const hostHasFooter = me?.isHost && ["mayor_election", "night", "day", "result", "jaeger_shot"].includes(state?.phase);
   const showGlobalLeave = showLeaveButton && !hostHasFooter;
   const showHostAdmin = me?.isHost && state?.phase && state.phase !== "lobby";
+  const showNightBanner = state?.phase === "night";
 
   return (
     <>
@@ -197,7 +204,7 @@ function AppContent() {
         <button
           type="button"
           onClick={() => setAdminOpen(true)}
-          aria-label="Einstellungen"
+          aria-label={t(lang, "gameSettings")}
           style={{
             position: "fixed",
             top: "max(16px, var(--safe-top))",
@@ -206,8 +213,8 @@ function AppContent() {
             width: 48,
             height: 48,
             borderRadius: "50%",
-            border: "none",
-            background: "var(--md-sys-color-surface-container)",
+            border: "1px solid var(--md-sys-color-outline)",
+            background: "var(--md-sys-color-surface)",
             color: "var(--md-sys-color-on-surface)",
             boxShadow: "var(--shadow-2)",
             cursor: "pointer",
@@ -219,6 +226,31 @@ function AppContent() {
           <span className="material-symbols-outlined" style={{ fontSize: 24 }}>settings</span>
         </button>
       )}
+      {showNightBanner && (
+        <div
+          style={{
+            position: "fixed",
+            top: "max(72px, calc(var(--safe-top) + 56px))",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 90,
+            width: "min(92vw, 560px)",
+            background: "var(--md-sys-color-surface)",
+            border: "1px solid var(--md-sys-color-outline)",
+            borderRadius: 20,
+            padding: "12px 18px 13px",
+            textAlign: "center",
+            boxShadow: "var(--shadow-2)",
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 500, color: "var(--md-sys-color-on-surface)", letterSpacing: "0" }}>
+            {t(lang, "nightTitle")}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 400, color: "var(--md-sys-color-on-surface-variant)" }}>
+            {t(lang, "nightCloseEyes")}
+          </div>
+        </div>
+      )}
       {screen}
       {showGlobalLeave && (
         <div style={{ position: "fixed", bottom: "max(16px, var(--safe-bottom))", left: "50%", transform: "translateX(-50%)", zIndex: 100 }}>
@@ -229,6 +261,7 @@ function AppContent() {
               padding: "10px 20px",
               fontSize: 14,
               boxShadow: "var(--shadow-2)",
+              letterSpacing: "0.02em",
             }}
           >
             {t(lang, "leaveRound")}
@@ -238,33 +271,13 @@ function AppContent() {
       <ConfirmModal
         open={showLeaveConfirm}
         title={t(lang, "leaveRound")}
-        message="Du bleibst angemeldet, wirst aber vom Spiel getrennt."
+        message={t(lang, "leaveRoundHint")}
         confirmLabel={t(lang, "leaveRound")}
-        cancelLabel="Abbrechen"
+        cancelLabel={t(lang, "closeLabel")}
         onConfirm={() => { setShowLeaveConfirm(false); leave(); }}
         onCancel={() => setShowLeaveConfirm(false)}
       />
-      {error && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 24,
-            left: 20,
-            right: 20,
-            maxWidth: 400,
-            margin: "0 auto",
-            padding: "14px 20px",
-            background: "var(--error-bg)",
-            color: "var(--error)",
-            border: "2px solid var(--error)",
-            borderRadius: "var(--radius-lg)",
-            fontSize: 14,
-            zIndex: 9999,
-          }}
-        >
-          {error}
-        </div>
-      )}
+      <Snackbar open={Boolean(error)} message={error} tone="error" />
     </>
   );
 }

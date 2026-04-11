@@ -10,18 +10,20 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
   const players = state?.players ?? [];
   const rules = state?.rules ?? {};
   const connectedCount = players.filter((p) => p.isConnected && !p.isHost).length;
+  const minPlayers = Number(rules.minPlayers) || 3;
   const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker"];
   const totalRoles = roleIds.reduce((sum, roleId) => {
     const r = rules.roles?.[roleId];
+    if (!r?.enabled) return sum;
     if (roleId === "werwolf" && r?.count === "1/3") return sum + Math.max(1, Math.floor(connectedCount / 3));
     return sum + (Number(r?.count) || 0);
   }, 0);
   const isHostOrAdmin = me?.isHost || me?.isAdmin;
-  const canStart = isHostOrAdmin && connectedCount >= 2 && totalRoles <= connectedCount;
+  const canStart = isHostOrAdmin && connectedCount >= minPlayers && totalRoles <= connectedCount;
   const startDisabledReason =
     !isHostOrAdmin
       ? "startOnlyHost"
-      : connectedCount < 2
+      : connectedCount < minPlayers
         ? "startNeedPlayers"
         : totalRoles > connectedCount
           ? "startRolesMismatch"
@@ -33,13 +35,12 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
         minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
-        background: "var(--md-sys-color-background)",
+        background: "transparent",
       }}
     >
       <header
         style={{
           background: "var(--md-sys-color-surface)",
-          borderBottom: "1px solid var(--md-sys-color-outline-variant)",
           paddingLeft: "max(16px, var(--safe-left))",
           paddingRight: "max(16px, var(--safe-right))",
           paddingTop: "max(16px, var(--safe-top))",
@@ -74,7 +75,7 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
                 alignItems: "center",
                 justifyContent: "center",
               }}
-              aria-label={lang === "de" ? "Einstellungen" : "Settings"}
+              aria-label={t(lang, "gameSettings")}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 26 }}>settings</span>
             </button>
@@ -85,19 +86,18 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
       <main
         style={{
           flex: 1,
-          padding: "24px 16px",
-          paddingLeft: "max(16px, var(--safe-left))",
-          paddingRight: "max(16px, var(--safe-right))",
+          padding: "30px 20px",
+          paddingLeft: "max(14px, var(--safe-left))",
+          paddingRight: "max(30px, var(--safe-right))",
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden" }}>
+        <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", boxShadow: "var(--shadow-3)" }}>
           <div
             style={{
               padding: "16px 20px",
-              borderBottom: "1px solid var(--md-sys-color-outline-variant)",
-              background: "var(--md-sys-color-surface-container)",
+              background: "var(--md-sys-color-surface)",
               borderTopLeftRadius: "var(--radius-xl)",
               borderTopRightRadius: "var(--radius-xl)",
             }}
@@ -116,9 +116,9 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
                   display: "flex",
                   alignItems: "center",
                   gap: 16,
-                  padding: "16px 20px",
+                  padding: i % 2 === 0 ? "16px 20px" : "17px 20px",
                   background: isMe ? "var(--md-sys-color-secondary-container)" : "transparent",
-                  borderBottom: isLast ? "none" : "1px solid var(--md-sys-color-outline-variant)",
+                  boxShadow: isLast ? "none" : "inset 0 -1px 0 rgba(0, 0, 0, 0.05)",
                   borderBottomLeftRadius: isLast ? "var(--radius-xl)" : 0,
                   borderBottomRightRadius: isLast ? "var(--radius-xl)" : 0,
                 }}
@@ -141,7 +141,7 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
                   <span
                     style={{
                       padding: "4px 10px",
-                      borderRadius: "var(--r-pill)",
+                  borderRadius: "12px 18px 14px 20px",
                       fontSize: 12,
                       fontWeight: 600,
                       background: "var(--md-sys-color-primary)",
@@ -173,7 +173,6 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
           paddingLeft: "max(16px, var(--safe-left))",
           paddingRight: "max(16px, var(--safe-right))",
           background: "var(--md-sys-color-surface)",
-          borderTop: "1px solid var(--md-sys-color-outline-variant)",
           display: "flex",
           flexDirection: "column",
           gap: 12,

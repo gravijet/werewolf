@@ -164,7 +164,7 @@ function maskPlayer(player, viewerPlayerId) {
   const viewer = state.players.find((p) => p.playerId === viewerPlayerId);
   const isDeadViewer = viewer && !viewer.isAlive;
   const isModerator = viewer && viewer.role === "moderator";
-  const showRole = isViewer || isDeadViewer || isModerator;
+  const showRole = isViewer || (isDeadViewer && state.rules?.revealRolesToDead) || isModerator;
 
   const out = {
     playerId: player.playerId,
@@ -180,9 +180,6 @@ function maskPlayer(player, viewerPlayerId) {
   };
   if (showRole && state.phase !== "lobby") {
     out.role = player.role;
-    if (isDeadViewer && !isViewer && player.role === "werwolf") {
-      out.role = null;
-    }
   }
   return out;
 }
@@ -252,7 +249,7 @@ export function addPlayer({
 
   const player = {
     playerId,
-    name: String(name).trim().slice(0, 80) || "Spieler",
+    name: String(name).trim().slice(0, 80) || "Unbekannt",
     isAdmin: !!isAdmin,
     isHost: !!isHost,
     canChangeName: true,
@@ -306,6 +303,7 @@ export function setPlayerName(playerId, newName) {
   if (!p.canChangeName) return { ok: false, error: "name_locked" };
   const name = String(newName).trim().slice(0, 80) || p.name;
   p.name = name;
+  schedulePersist();
   return { ok: true, name };
 }
 
@@ -370,7 +368,22 @@ export function adminSetRules(adminPlayerId, newRules) {
   if (!admin || (!admin.isAdmin && !admin.isHost)) return { ok: false, error: "not_admin_or_host" };
   if (state.phase !== "lobby") return { ok: false, error: "game_started" };
   if (newRules && typeof newRules === "object") {
-    state.rules = { ...state.rules, ...newRules };
+    const merged = { ...state.rules, ...newRules };
+    if (newRules.roles && typeof newRules.roles === "object") {
+      const normalizedRoles = {};
+      for (const [roleId, roleConfig] of Object.entries(newRules.roles)) {
+        const rawCount = roleConfig?.count;
+        const normalizedCount =
+          rawCount === "1/3" ? "1/3" : Math.max(0, Number.isFinite(Number(rawCount)) ? Number(rawCount) : 0);
+        normalizedRoles[roleId] = {
+          ...roleConfig,
+          count: normalizedCount,
+          enabled: normalizedCount === "1/3" ? true : normalizedCount > 0,
+        };
+      }
+      merged.roles = { ...state.rules.roles, ...normalizedRoles };
+    }
+    state.rules = merged;
   }
   schedulePersist();
   return { ok: true, rules: state.rules };
@@ -385,9 +398,8 @@ export function startGame(hostPlayerId) {
   if (!host || (!host.isHost && !host.isAdmin)) return { ok: false, error: "not_host" };
   if (state.phase !== "lobby") return { ok: false, error: "already_started" };
   
-  const playingPlayers = state.players.filter(p => !p.isHost);
-  const alive = playingPlayers.filter((p) => p.isConnected);
-  if (alive.length < state.rules.minPlayers) return { ok: false, error: "not_enough_players" };
+  const connectedPlayers = state.players.filter((p) => !p.isHost && p.isConnected);
+  if (connectedPlayers.length < state.rules.minPlayers) return { ok: false, error: "not_enough_players" };
 
   state.round = 1;
   state.night = null;
@@ -397,25 +409,32 @@ export function startGame(hostPlayerId) {
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
 
-  const n = playingPlayers.length;
+  const n = connectedPlayers.length;
   const roles = distributeRoles(state.rules, n);
   
-  playingPlayers.forEach((p, i) => {
+  connectedPlayers.forEach((p, i) => {
     p.role = roles[i] ?? "dorfbewohner";
     p.isAlive = true;
     p.isMayor = false;
   });
+  state.players
+    .filter((p) => !p.isHost && !p.isConnected)
+    .forEach((p) => {
+      p.role = null;
+      p.isAlive = false;
+      p.isMayor = false;
+    });
 
   state.players.filter(p => p.isHost).forEach(p => {
     p.role = "moderator";
-    p.isAlive = false;
+    p.isAlive = true; // Host should always be alive
     p.isMayor = false;
   });
 
   if (state.rules.mayorElectionEnabled) {
     state.phase = "mayor_election";
     state.mayorElection = {
-      candidateIds: playingPlayers.map((p) => p.playerId),
+      candidateIds: connectedPlayers.map((p) => p.playerId),
       votes: {},
       round: 1,
       status: "voting",
@@ -1050,7 +1069,7 @@ function checkWinCondition() {
   if (alive.length === 2 && alive[0].inLove && alive[1].inLove) return "lovers";
 
   // Werwölfe gewinnen, wenn sie die einzigen letzten Überlebenden sind.
-  if (nonWerewolves.length === 0) return "werwolf";
+  if (werewolves.length > 0 && werewolves.length >= nonWerewolves.length) return "werwolf";
 
   // Dorf gewinnt, wenn keine Werwölfe mehr leben (Liebespaar zählt dann als Dorf).
   if (werewolves.length === 0) return "village";
@@ -1065,6 +1084,53 @@ export function removePlayer(playerId) {
   const idx = state.players.findIndex((p) => p.playerId === playerId);
   if (idx === -1) return;
   state.players.splice(idx, 1);
+
+  if (state.mayorElection) {
+    state.mayorElection.candidateIds = (state.mayorElection.candidateIds || []).filter((id) => id !== playerId);
+    if (state.mayorElection.votes) {
+      delete state.mayorElection.votes[playerId];
+      for (const [voterId, targetId] of Object.entries(state.mayorElection.votes)) {
+        if (targetId === playerId) delete state.mayorElection.votes[voterId];
+      }
+    }
+    if (state.mayorElection.mayorId === playerId) state.mayorElection.mayorId = null;
+  }
+
+  if (state.day) {
+    if (state.day.accusations) {
+      delete state.day.accusations[playerId];
+      for (const [voterId, targetId] of Object.entries(state.day.accusations)) {
+        if (targetId === playerId) delete state.day.accusations[voterId];
+      }
+    }
+    if (state.day.votes) {
+      delete state.day.votes[playerId];
+      for (const [voterId, targetId] of Object.entries(state.day.votes)) {
+        if (targetId === playerId) delete state.day.votes[voterId];
+      }
+    }
+    if (Array.isArray(state.day.runoffCandidates)) {
+      state.day.runoffCandidates = state.day.runoffCandidates.filter((id) => id !== playerId);
+      if (state.day.runoffCandidates.length === 0) state.day.runoffCandidates = null;
+    }
+    if (Array.isArray(state.day.accusedIds)) {
+      state.day.accusedIds = state.day.accusedIds.filter((id) => id !== playerId);
+    }
+    if (state.day.silencedPlayerId === playerId) state.day.silencedPlayerId = null;
+    if (state.day.eliminatedId === playerId) state.day.eliminatedId = null;
+  }
+
+  if (state.night?.actions) {
+    if (state.night.actions.werwolf?.targetId === playerId) state.night.actions.werwolf.targetId = null;
+    if (state.night.actions.seher?.targetId === playerId) state.night.actions.seher.targetId = null;
+    if (state.night.actions.hexe?.healId === playerId) state.night.actions.hexe.healId = null;
+    if (state.night.actions.hexe?.poisonId === playerId) state.night.actions.hexe.poisonId = null;
+    if (state.night.actions.baecker?.targetId === playerId) state.night.actions.baecker.targetId = null;
+    if (state.night.actions.amor?.lover1Id === playerId) state.night.actions.amor.lover1Id = null;
+    if (state.night.actions.amor?.lover2Id === playerId) state.night.actions.amor.lover2Id = null;
+  }
+
+  if (state.jaegerSourceId === playerId) state.jaegerSourceId = null;
   ensureHost();
   schedulePersist();
 }

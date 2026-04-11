@@ -17,13 +17,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/socket.io": {
-        target: "http://localhost:3000",
+        target: "http://localhost:5172",
         ws: true,
         configure: (proxy) => {
           proxy.on("error", () => {});
         },
       },
-      "/health": "http://localhost:3000",
+      "/health": "http://localhost:5172",
     },
   },
 });

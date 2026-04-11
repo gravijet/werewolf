@@ -89,7 +89,7 @@ export function AdminScreen({ lang, onClose }) {
           type="button"
           onClick={onClose}
           className="md-state-layer"
-          aria-label={lang === "de" ? "Schließen" : "Close"}
+          aria-label={lang === "de" ? t(lang, "closeLabel") : "Close"}
           style={{
             width: 48,
             height: 48,
@@ -108,7 +108,7 @@ export function AdminScreen({ lang, onClose }) {
         </button>
       </header>
 
-      <div role="tablist" aria-label={lang === "de" ? "Einstellungen" : "Settings"} style={{ display: "flex", background: "var(--md-sys-color-surface)", borderBottom: "1px solid var(--md-sys-color-outline-variant)" }}>
+      <div role="tablist" aria-label={t(lang, "gameSettings")} style={{ display: "flex", background: "var(--md-sys-color-surface)", borderBottom: "1px solid var(--md-sys-color-outline-variant)" }}>
         <TabButton id="rules" label={t(lang, "rules")} icon="gavel" />
         <TabButton id="players" label={t(lang, "players")} icon="group" />
         {me?.isAdmin && <TabButton id="banned" label={t(lang, "bannedPlayers")} icon="block" />}
@@ -224,6 +224,7 @@ export function AdminScreen({ lang, onClose }) {
               const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker"];
               const totalRoles = roleIds.reduce((s, roleId) => {
                 const r = rules.roles?.[roleId] ?? {};
+                if (!r.enabled) return s;
                 if (roleId === "werwolf" && r.count === "1/3") return s + Math.max(1, Math.floor(playerCount / 3));
                 return s + (Number(r.count) || 0);
               }, 0);
@@ -243,7 +244,7 @@ export function AdminScreen({ lang, onClose }) {
                   <div style={{ display: "grid", gap: 16 }}>
                     {roleIds.map((roleId) => {
                       const r = rules.roles?.[roleId] ?? {};
-                      const count = r.count === "1/3" ? "1/3" : (Number(r.count) || 0);
+                      const count = r.enabled ? (r.count === "1/3" ? "1/3" : (Number(r.count) || 0)) : 0;
                       const num = typeof count === "number" ? count : null;
                       const roleLabel = t(lang, roleId) || roleId;
                       const inputId = "rule-" + roleId;
@@ -446,7 +447,7 @@ export function AdminScreen({ lang, onClose }) {
                   <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
                     {p.isHost && <span style={{ fontSize: 13, padding: "4px 8px", background: "var(--md-sys-color-secondary-container)", color: "var(--md-sys-color-on-secondary-container)", borderRadius: "6px", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase" }}>{t(lang, "host")}</span>}
                     {p.isMayor && <span style={{ fontSize: 13, padding: "4px 8px", background: "var(--md-sys-color-tertiary-container)", color: "var(--md-sys-color-on-tertiary-container)", borderRadius: "6px", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase" }}>{t(lang, "mayor")}</span>}
-                    {!p.isHost && !p.isMayor && <span style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)" }}>Spieler</span>}
+                    {!p.isHost && !p.isMayor && <span style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)" }}>{t(lang, "rolePlayer")}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
@@ -516,7 +517,7 @@ export function AdminScreen({ lang, onClose }) {
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 6px", color: "var(--md-sys-color-on-surface)", letterSpacing: "-0.01em" }}>{p.name}</p>
                     <p style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)", margin: 0 }}>
-                      Gebannt am: {new Date(p.timestamp).toLocaleString()}
+                      {t(lang, "bannedAt")}: {new Date(p.timestamp).toLocaleString()}
                     </p>
                   </div>
                   <Button

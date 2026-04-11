@@ -1,12 +1,12 @@
 import { useCallback } from "react";
 
 export const PHRASES = {
-  mayor_election: "Bürgermeisterwahl. Bitte wählt eine Person.",
-  night: "Die Nacht bricht an. Alle schließen die Augen.",
-  werwolf: "Werwölfe, wacht auf. Wählt euer Opfer.",
-  seher: "Seherin, wache auf. Wen möchtest du beschauen?",
-  hexe: "Hexe, wache auf. Du kannst heilen oder vergiften.",
-  day: "Der Tag bricht an. Alle öffnet die Augen.",
+  mayor_election: "Bürgermeisterwahl. Jetzt abstimmen.",
+  night: "Nacht. Alle Augen schließen.",
+  werwolf: "Werwölfe sind am Zug. Ziel wählen.",
+  seher: "Seher ist am Zug. Eine Person prüfen.",
+  hexe: "Hexe ist am Zug. Heilen oder vergiften.",
+  day: "Tag. Alle Augen öffnen.",
 };
 
 export function useHostAudio(phase, subPhase, isHost) {

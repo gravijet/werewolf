@@ -1,4 +1,4 @@
-# Werwolf Jugend – Frontend
+# Werwolf – Frontend
 
 React (Vite) + Socket.io-Client. Mobile-First, Material Design, i18n (DE/EN), Host-Audio (deutsch).
 

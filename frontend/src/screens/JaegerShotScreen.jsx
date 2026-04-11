@@ -19,17 +19,17 @@ export function JaegerShotScreen({ lang }) {
           <span className="material-symbols-outlined" style={{ fontSize: 40 }}>sports_martial_arts</span>
         </div>
         <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--md-sys-color-on-surface)", margin: "0 0 8px" }}>
-          Jäger-Schuss
+          {t(lang, "jaegerShotTitle")}
         </h2>
         <p style={{ fontSize: 16, color: "var(--md-sys-color-on-surface-variant)", margin: 0 }}>
-          {jaeger?.name} wurde ausgewählt. Wen trifft sein letzter Schuss?
+          {t(lang, "jaegerShotPrompt").replace("{name}", jaeger?.name || "Unbekannt")}
         </p>
       </header>
 
       {me?.isHost && (
         <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", marginBottom: 24 }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--md-sys-color-outline-variant)", background: "var(--md-sys-color-surface-container)" }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--md-sys-color-on-surface-variant)" }}>Opfer wählen</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--md-sys-color-on-surface-variant)" }}>{t(lang, "selectVictim")}</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 16 }}>
             {alive.map((p) => (
@@ -55,14 +55,14 @@ export function JaegerShotScreen({ lang }) {
           </div>
           <div style={{ padding: "0 16px 16px" }}>
             <Button fullWidth disabled={!selectedId} onClick={() => selectedId && emit("jaeger_kill", { targetId: selectedId })} style={{ padding: "16px" }}>
-              Schuss ausführen
+              {t(lang, "executeShot")}
             </Button>
           </div>
         </Card>
       )}
 
       {!me?.isHost && (
-        <p style={{ textAlign: "center", color: "var(--md-sys-color-on-surface-variant)", fontSize: 16 }}>Der Host wählt das Opfer des Jägers …</p>
+        <p style={{ textAlign: "center", color: "var(--md-sys-color-on-surface-variant)", fontSize: 16 }}>{t(lang, "hostSelectingJaegerVictim")}</p>
       )}
     </div>
   );

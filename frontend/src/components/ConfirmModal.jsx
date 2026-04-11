@@ -15,7 +15,7 @@ export function ConfirmModal({ open, title, message, confirmLabel, cancelLabel, 
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0,0,0,0.5)",
+        background: "rgba(255, 255, 255, 0.86)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -23,11 +23,21 @@ export function ConfirmModal({ open, title, message, confirmLabel, cancelLabel, 
         padding: 20,
       }}
     >
-      <Card style={{ maxWidth: 400, width: "100%", padding: 24 }}>
-        <h3 style={{ margin: "0 0 16px", fontSize: 20, color: "var(--md-sys-color-on-surface)" }}>
+      <Card
+        style={{
+          maxWidth: 420,
+          width: "100%",
+          padding: "32px 28px 26px",
+          background: "var(--md-sys-color-surface)",
+          border: "1px solid var(--md-sys-color-outline)",
+          borderRadius: "var(--radius-xl)",
+          boxShadow: "var(--shadow-3)",
+        }}
+      >
+        <h3 style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 500, color: "var(--md-sys-color-on-surface)" }}>
           {title}
         </h3>
-        <p style={{ margin: "0 0 24px", color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.5 }}>
+        <p style={{ margin: "0 0 26px", color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.6 }}>
           {message}
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>

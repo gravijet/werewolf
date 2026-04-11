@@ -1,4 +1,4 @@
-# Werwolf Jugend
+# Werwolf
 
 Digitale Unterstützung für eine physische Werwolf-Spielrunde: ein gemeinsamer Spielraum mit Echtzeit-Sync (Socket.io), Mobile-First-UI und Host-Audio.
 
@@ -35,16 +35,16 @@ Frontend läuft auf **http://localhost:5173**. Im Browser öffnen; das Frontend 
 
 ### 3. Spielen
 
-- **Spieler-Passwort:** `JUGENDINNSBRUCK`
-- **Admin-Passwort:** `JUGENDADMIN`
+- **Spieler-Passwort:** `WOLFGAME`
+- **Admin-Passwort:** `WOLFGAMEADMIN`
 
 Mehrere Tabs/Geräte mit dem gleichen Frontend-URL nutzen; ein Host startet das Spiel aus der Lobby.
 
 ### Kurz prüfen, ob alles läuft
 
-1. **Backend:** Im Ordner `backend` → `npm install` → `npm start`. Im Browser **http://localhost:3000/health** öffnen → es erscheint `{"ok":true,"service":"werwolf-jugend"}`.
+1. **Backend:** Im Ordner `backend` → `npm install` → `npm start`. Im Browser **http://localhost:3000/health** öffnen → es erscheint `{"ok":true,"service":"werwolf-service"}`.
 2. **Frontend:** Im Ordner `frontend` → `npm install` → `npm run dev`. **http://localhost:5173** öffnen → Join-Maske mit Name/Passwort erscheint.
-3. **Spielablauf:** Mit Passwort `JUGENDINNSBRUCK` beitreten → Lobby mit Raumcode. In einem zweiten Tab erneut beitreten → zweiter Spieler sichtbar. Erster Tab ist Host → „Spiel starten“ (ab 6 Spielern möglich; für Tests in `backend` ggf. `minPlayers` in den Regeln anpassen oder 6 Tabs öffnen).
+3. **Spielablauf:** Mit Passwort `WOLFGAME` beitreten → Lobby mit Raumcode. In einem zweiten Tab erneut beitreten → zweiter Spieler sichtbar. Erster Tab ist Host → „Spiel starten“ (ab 6 Spielern möglich; für Tests in `backend` ggf. `minPlayers` in den Regeln anpassen oder 6 Tabs öffnen).
 
 Die **index.html** im Projektroot ist nur eine Hinweis-Seite („Start: cd frontend …“). Die eigentliche App ist das **Frontend** unter `frontend/` (Einstieg: `frontend/index.html` → lädt per Vite `src/main.jsx`).
 
@@ -53,7 +53,7 @@ Die **index.html** im Projektroot ist nur eine Hinweis-Seite („Start: cd front
 ## Projektstruktur
 
 ```
-WerwolfJugend/
+Werwolf/
 ├── backend/          # Express + Socket.io
 │   ├── src/
 │   │   ├── server.js

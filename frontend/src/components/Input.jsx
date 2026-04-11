@@ -12,13 +12,13 @@ export function Input({ label, value, onChange, type = "text", placeholder, ...r
         <label
           style={{
             display: "block",
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: 12,
+            fontWeight: 500,
             color: isFocused ? "var(--md-sys-color-primary)" : "var(--md-sys-color-on-surface-variant)",
             marginBottom: 6,
-            paddingLeft: 2,
-            transition: "color 0.2s",
-            letterSpacing: "-0.01em",
+            paddingLeft: 12,
+            transition: "color 140ms ease",
+            letterSpacing: "0.04em",
           }}
         >
           {label}
@@ -32,17 +32,17 @@ export function Input({ label, value, onChange, type = "text", placeholder, ...r
           placeholder={placeholder}
           style={{
             width: "100%",
-            padding: "14px 16px",
+            padding: "15px 16px 14px",
             paddingRight: isPassword ? 48 : 16,
-            border: `2px solid ${isFocused ? "var(--md-sys-color-primary)" : "var(--md-sys-color-outline-variant)"}`,
-            borderRadius: "var(--radius)",
-            background: isFocused ? "var(--md-sys-color-surface)" : "var(--md-sys-color-surface-container-low)",
+            border: "1px solid transparent",
+            borderRadius: 18,
+            background: "var(--md-sys-color-surface)",
             fontFamily: "inherit",
             fontSize: 16,
             color: "var(--md-sys-color-on-surface)",
             outline: "none",
-            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-            boxShadow: isFocused ? "0 4px 6px -1px rgb(0 0 0 / 0.05)" : "none",
+            transition: "border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease",
+            boxShadow: isFocused ? "0 0 0 2px color-mix(in srgb, var(--md-sys-color-primary) 14%, white), var(--shadow-1)" : "var(--shadow-1)",
           }}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
@@ -59,7 +59,7 @@ export function Input({ label, value, onChange, type = "text", placeholder, ...r
               transform: "translateY(-50%)",
               width: 36,
               height: 36,
-              borderRadius: "var(--radius)",
+              borderRadius: 18,
               background: "transparent",
               border: "none",
               cursor: "pointer",
@@ -71,7 +71,7 @@ export function Input({ label, value, onChange, type = "text", placeholder, ...r
               justifyContent: "center",
               transition: "all 0.2s",
             }}
-            aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
+            aria-label={showPassword ? "Passwort ausblenden" : "Passwort einblenden"}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
               {showPassword ? "visibility_off" : "visibility"}

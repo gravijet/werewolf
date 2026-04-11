@@ -37,18 +37,18 @@ export function DeadScreen({ lang }) {
           {players.map((p) => (
             <Card
               key={p.playerId}
-              variant={p.role === "werwolf" ? "filled" : "outlined"}
+              variant="outlined"
               style={{
                 padding: "20px 12px",
                 textAlign: "center",
-                background: p.role === "werwolf" ? "var(--md-sys-color-error-container)" : "var(--md-sys-color-surface)",
-                borderColor: p.role === "werwolf" ? "transparent" : "var(--md-sys-color-outline-variant)",
+                background: "var(--md-sys-color-surface)",
+                borderColor: "var(--md-sys-color-outline-variant)",
                 borderRadius: "16px",
               }}
             >
               <Avatar name={p.name} size={56} style={{ margin: "0 auto 12px" }} />
-              <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px", color: p.role === "werwolf" ? "var(--md-sys-color-on-error-container)" : "var(--md-sys-color-on-surface)", letterSpacing: "-0.01em" }}>{p.name}</p>
-              <p style={{ fontSize: 13, color: p.role === "werwolf" ? "var(--md-sys-color-error)" : "var(--md-sys-color-on-surface-variant)", margin: 0, fontWeight: 600 }}>
+              <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px", color: "var(--md-sys-color-on-surface)", letterSpacing: "-0.01em" }}>{p.name}</p>
+              <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: 0, fontWeight: 600 }}>
                 {p.isMayor ? t(lang, "mayor") + " · " : ""}{p.role ? (t(lang, p.role) || p.role) : "?"}
               </p>
             </Card>
@@ -64,7 +64,7 @@ export function DeadScreen({ lang }) {
         <Card style={{ padding: 0, overflow: "hidden" }}>
           {gameLog.length === 0 ? (
             <p style={{ padding: "32px 24px", textAlign: "center", color: "var(--md-sys-color-on-surface-variant)", margin: 0, fontSize: 15, fontWeight: 500 }}>
-              Keine Ereignisse bisher
+              {t(lang, "emptyLog")}
             </p>
           ) : (
             gameLog.map((entry, i) => (
@@ -94,10 +94,10 @@ export function DeadScreen({ lang }) {
                   {entry.phase === "night" ? `N${entry.round}` : `T${entry.round}`}
                 </span>
                 <span style={{ paddingTop: 2, lineHeight: 1.5 }}>
-                  {entry.messageKey === "victim_werwolf" && `${entry.playerName} wurde von den Werwölfen getötet`}
-                  {entry.messageKey === "victim_hexe" && `${entry.playerName} wurde vergiftet`}
-                  {entry.messageKey === "lynch" && `${entry.playerName} wurde vom Dorf ausgewählt`}
-                  {entry.messageKey === "jaeger_shot" && `${entry.playerName} wurde vom Jäger mitgenommen`}
+                  {entry.messageKey === "victim_werwolf" && t(lang, "logVictimWerwolf").replace("{name}", entry.playerName)}
+                  {entry.messageKey === "victim_hexe" && t(lang, "logVictimHexe").replace("{name}", entry.playerName)}
+                  {entry.messageKey === "lynch" && t(lang, "logLynch").replace("{name}", entry.playerName)}
+                  {entry.messageKey === "jaeger_shot" && t(lang, "logJaegerShot").replace("{name}", entry.playerName)}
                 </span>
               </div>
             ))

@@ -22,6 +22,10 @@ export function NightScreen({ lang }) {
 
   const { speakCurrent } = useHostAudio(state?.phase, night?.subPhase, me?.isHost);
 
+  const myPlayer = (state?.players ?? []).find((p) => p.playerId === me?.playerId);
+  const lovePartnerId = myPlayer?.lovePartnerId;
+  const lovePartner = lovePartnerId ? (state?.players ?? []).find((p) => p.playerId === lovePartnerId) : null;
+
   const canAct =
     (me?.isHost && subPhase === "werwolf") ||
     (myRole === "seher" && subPhase === "seher") ||
@@ -117,20 +121,36 @@ export function NightScreen({ lang }) {
           </div>
         )}
 
-        {myRole === "blinzelmaedchen" && subPhase === "werwolf" && actions.werwolf?.targetId && (() => {
-          const targetPlayer = (state?.players ?? []).find(p => p.playerId === actions.werwolf.targetId);
-          if (!targetPlayer) return null;
+        {lovePartner && (
+          <Card style={{ marginBottom: 24, padding: "14px 18px", background: "var(--md-sys-color-tertiary-container)", border: "1px solid transparent" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-tertiary)", fontSize: 24 }}>favorite</span>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-tertiary-container)", lineHeight: 1.4 }}>
+                {t(lang, "youAreInLoveWith").replace("{name}", lovePartner.name)}
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {myRole === "blinzelmaedchen" && subPhase === "werwolf" && (() => {
+          const werwolfIds = actions.werwolf?.werwolfIds;
+          if (!werwolfIds?.length) return null;
+          const werwolfPlayers = (state?.players ?? []).filter(p => werwolfIds.includes(p.playerId));
           return (
             <Card style={{ marginBottom: 24, padding: "16px 18px", background: "rgba(236,72,153,0.12)", border: "1px solid rgba(236,72,153,0.25)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 26 }}>visibility</span>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--md-sys-color-on-surface)" }}>
-                    Beobachtet: <strong>{targetPlayer.name}</strong>
+                  <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 700, color: "var(--md-sys-color-on-surface)" }}>
+                    {t(lang, "blinzelmaedchenSees")}
                   </p>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.4 }}>
-                    Keine Aktion in dieser Phase.
-                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {werwolfPlayers.map(p => (
+                      <span key={p.playerId} style={{ padding: "4px 12px", background: "var(--md-sys-color-error-container)", color: "var(--md-sys-color-on-error-container)", borderRadius: 999, fontSize: 13, fontWeight: 600 }}>
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </Card>
@@ -234,33 +254,38 @@ export function NightScreen({ lang }) {
                   </p>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
-                  {!state?.witchUsedHeal && alive.map((p) => (
-                    <button
-                      key={p.playerId}
-                      type="button"
-                      className="md-state-layer"
-                      onClick={() => { setHexeHeal(hexeHeal === p.playerId ? null : p.playerId); setHexePoison(null); }}
-                      style={{
-                        padding: "14px 20px",
-                        borderRadius: "16px",
-                        border: "1px solid transparent",
-                        background: hexeHeal === p.playerId ? "color-mix(in srgb, var(--success) 20%, white)" : "var(--md-sys-color-surface-container-low)",
-                        color: "var(--md-sys-color-on-surface)",
-                        fontSize: 15,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {p.name}
-                      {hexeHeal === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>}
-                    </button>
-                  ))}
-                  {state?.witchUsedHeal && <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>Heiltrank bereits verbraucht.</span>}
+                  {!state?.witchUsedHeal && (() => {
+                    const wervictimId = night?.actions?.werwolf?.targetId;
+                    const wervictim = wervictimId ? (state?.players ?? []).find(p => p.playerId === wervictimId) : null;
+                    if (!wervictim) return <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>{t(lang, "hexeNoVictim")}</span>;
+                    return (
+                      <button
+                        key={wervictim.playerId}
+                        type="button"
+                        className="md-state-layer"
+                        onClick={() => { setHexeHeal(hexeHeal === wervictim.playerId ? null : wervictim.playerId); setHexePoison(null); }}
+                        style={{
+                          padding: "14px 20px",
+                          borderRadius: "16px",
+                          border: "1px solid transparent",
+                          background: hexeHeal === wervictim.playerId ? "color-mix(in srgb, var(--success) 20%, white)" : "var(--md-sys-color-surface-container-low)",
+                          color: "var(--md-sys-color-on-surface)",
+                          fontSize: 15,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {wervictim.name}
+                        {hexeHeal === wervictim.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>}
+                      </button>
+                    );
+                  })()}
+                  {state?.witchUsedHeal && <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>{t(lang, "alreadyUsed")}</span>}
                 </div>
                 
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>

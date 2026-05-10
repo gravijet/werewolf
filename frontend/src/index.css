@@ -1,54 +1,57 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --md-sys-color-primary: #000000;
+  /* MD3 — Deep Purple / Indigo primary */
+  --md-sys-color-primary: #6750a4;
   --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #ffffff;
-  --md-sys-color-on-primary-container: #000000;
-  --md-sys-color-inverse-primary: #000000;
+  --md-sys-color-primary-container: #eaddff;
+  --md-sys-color-on-primary-container: #21005d;
+  --md-sys-color-inverse-primary: #d0bcff;
 
-  --md-sys-color-secondary: #000000;
+  /* Teal secondary */
+  --md-sys-color-secondary: #625b71;
   --md-sys-color-on-secondary: #ffffff;
-  --md-sys-color-secondary-container: #ffffff;
-  --md-sys-color-on-secondary-container: #000000;
+  --md-sys-color-secondary-container: #e8def8;
+  --md-sys-color-on-secondary-container: #1d192b;
 
-  --md-sys-color-tertiary: #000000;
+  /* Amber / rose tertiary */
+  --md-sys-color-tertiary: #7d5260;
   --md-sys-color-on-tertiary: #ffffff;
-  --md-sys-color-tertiary-container: #ffffff;
-  --md-sys-color-on-tertiary-container: #000000;
+  --md-sys-color-tertiary-container: #ffd8e4;
+  --md-sys-color-on-tertiary-container: #31111d;
 
   --md-sys-color-error: #b3261e;
   --md-sys-color-on-error: #ffffff;
   --md-sys-color-error-container: #f9dedc;
   --md-sys-color-on-error-container: #410e0b;
 
-  --md-sys-color-background: #ffffff;
-  --md-sys-color-on-background: #000000;
-  --md-sys-color-surface: #ffffff;
-  --md-sys-color-on-surface: #000000;
-  --md-sys-color-surface-variant: #ffffff;
-  --md-sys-color-on-surface-variant: #000000;
-  --md-sys-color-outline: rgba(0, 0, 0, 0.12);
-  --md-sys-color-outline-variant: rgba(0, 0, 0, 0.08);
+  --md-sys-color-background: #fffbfe;
+  --md-sys-color-on-background: #1c1b1f;
+  --md-sys-color-surface: #fffbfe;
+  --md-sys-color-on-surface: #1c1b1f;
+  --md-sys-color-surface-variant: #e7e0ec;
+  --md-sys-color-on-surface-variant: #49454f;
+  --md-sys-color-outline: #79747e;
+  --md-sys-color-outline-variant: #cac4d0;
 
   --md-sys-color-surface-container-lowest: #ffffff;
-  --md-sys-color-surface-container-low: #ffffff;
-  --md-sys-color-surface-container: #ffffff;
-  --md-sys-color-surface-container-high: #ffffff;
-  --md-sys-color-surface-container-highest: #ffffff;
+  --md-sys-color-surface-container-low: #f7f2fa;
+  --md-sys-color-surface-container: #f3edf7;
+  --md-sys-color-surface-container-high: #ece6f0;
+  --md-sys-color-surface-container-highest: #e6e0e9;
 
   --white: #ffffff;
   --blue: var(--md-sys-color-primary);
-  --blue-dark: #000000;
+  --blue-dark: #21005d;
   --text: var(--md-sys-color-on-surface);
-  --text-muted: #000000;
+  --text-muted: var(--md-sys-color-on-surface-variant);
   --border: var(--md-sys-color-outline-variant);
 
   --bg: var(--md-sys-color-background);
   --surface: var(--md-sys-color-surface);
   --surface-elevated: var(--md-sys-color-surface-container-high);
   --accent: var(--md-sys-color-primary);
-  --accent-hover: #f4f4f4;
+  --accent-hover: #f7f2fa;
   --accent-bg: var(--md-sys-color-primary-container);
 
   --error: var(--md-sys-color-error);
@@ -95,7 +98,7 @@ html {
 
 body {
   font-family: "Google Sans Text", "Google Sans", "Inter", system-ui, -apple-system, sans-serif;
-  background: #ffffff;
+  background: var(--md-sys-color-background);
   color: var(--text);
   line-height: 1.5;
   min-height: 100vh;

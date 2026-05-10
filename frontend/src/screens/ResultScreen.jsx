@@ -24,6 +24,19 @@ export function ResultScreen({ lang }) {
         <h2 style={{ fontSize: 32, fontWeight: 800, color: "var(--md-sys-color-on-surface)", margin: 0, letterSpacing: "-0.02em" }}>{t(lang, "result")}</h2>
       </header>
 
+      {victim && (
+        <Card style={{ padding: "28px 24px", marginBottom: 20, background: "var(--md-sys-color-surface-container)", borderColor: "transparent" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--md-sys-color-on-surface-variant)" }}>sentiment_dissatisfied</span>
+            <div>
+              <p style={{ fontSize: 18, color: "var(--md-sys-color-on-surface)", margin: 0, fontWeight: 600, letterSpacing: "-0.01em" }}>
+                {victim.name} {t(lang, "killedLastNight")}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {eliminated && (
         <Card style={{ padding: "28px 24px", marginBottom: 20, background: "var(--md-sys-color-error-container)", borderColor: "transparent" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -43,20 +56,7 @@ export function ResultScreen({ lang }) {
             <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--md-sys-color-tertiary)" }}>sports_martial_arts</span>
             <div>
               <p style={{ fontSize: 18, fontWeight: 700, color: "var(--md-sys-color-on-tertiary-container)", margin: 0, letterSpacing: "-0.01em" }}>
-                {jaegerKill.name} wurde vom Jaeger getroffen
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {victim && !eliminated && !jaegerKill && (
-        <Card style={{ padding: "28px 24px", marginBottom: 20, background: "var(--md-sys-color-surface-container)", borderColor: "transparent" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--md-sys-color-on-surface-variant)" }}>sentiment_dissatisfied</span>
-            <div>
-              <p style={{ fontSize: 18, color: "var(--md-sys-color-on-surface)", margin: 0, fontWeight: 600, letterSpacing: "-0.01em" }}>
-                {victim.name} {t(lang, "killedLastNight")}
+                {t(lang, "logJaegerShot").replace("{name}", jaegerKill.name)}
               </p>
             </div>
           </div>

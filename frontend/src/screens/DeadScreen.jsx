@@ -98,6 +98,7 @@ export function DeadScreen({ lang }) {
                   {entry.messageKey === "victim_hexe" && t(lang, "logVictimHexe").replace("{name}", entry.playerName)}
                   {entry.messageKey === "lynch" && t(lang, "logLynch").replace("{name}", entry.playerName)}
                   {entry.messageKey === "jaeger_shot" && t(lang, "logJaegerShot").replace("{name}", entry.playerName)}
+                  {entry.messageKey === "lover_death" && t(lang, "logLoverDeath").replace("{name}", entry.playerName)}
                 </span>
               </div>
             ))

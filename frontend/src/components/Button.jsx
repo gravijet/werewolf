@@ -7,14 +7,14 @@ const variants = {
     border: "1px solid transparent",
   },
   tonal: {
-    background: "var(--md-sys-color-surface)",
-    color: "var(--md-sys-color-on-surface)",
+    background: "var(--md-sys-color-secondary-container)",
+    color: "var(--md-sys-color-on-secondary-container)",
     border: "1px solid transparent",
   },
   outlined: {
-    background: "var(--md-sys-color-surface)",
+    background: "transparent",
     color: "var(--md-sys-color-primary)",
-    border: "1px solid transparent",
+    border: "1px solid var(--md-sys-color-outline)",
   },
   text: {
     background: "transparent",

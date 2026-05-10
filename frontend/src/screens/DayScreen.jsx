@@ -39,6 +39,9 @@ export function DayScreen({ lang }) {
   const iAmDead = me && !state?.players?.find((p) => p.playerId === me.playerId)?.isAlive;
   const iAmSilenced = day?.silencedPlayerId === me?.playerId;
   const voterCount = alive.filter((p) => !p.isHost && p.isAlive && p.playerId !== day?.silencedPlayerId).length;
+  const myDayPlayer = (state?.players ?? []).find((p) => p.playerId === me?.playerId);
+  const dayLovePartnerId = myDayPlayer?.lovePartnerId;
+  const dayLovePartner = dayLovePartnerId ? (state?.players ?? []).find((p) => p.playerId === dayLovePartnerId) : null;
 
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
@@ -100,6 +103,15 @@ export function DayScreen({ lang }) {
               </p>
               <p style={{ fontSize: 14, fontWeight: 500, margin: "4px 0 0", opacity: 0.9 }}>{t(lang, "werewolvesStruck")}</p>
             </div>
+          </div>
+        )}
+
+        {dayLovePartner && !iAmDead && (
+          <div style={{ padding: "14px 18px", marginBottom: 24, background: "var(--md-sys-color-tertiary-container)", borderRadius: "var(--radius-lg)", display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-tertiary)", fontSize: 22, flexShrink: 0 }}>favorite</span>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-tertiary-container)", lineHeight: 1.4 }}>
+              {t(lang, "youAreInLoveWith").replace("{name}", dayLovePartner.name)}
+            </p>
           </div>
         )}
 

@@ -117,7 +117,7 @@ io.on("connection", (socket) => {
     }
 
     if (isBanned({ playerId: clientPlayerId, fingerprint, ip })) {
-      sendError("banned", "Du darfst diesem Raum nicht beitreten.");
+      sendError("banned", "Du bist für diesen Raum gesperrt.");
       return;
     }
 
@@ -125,7 +125,7 @@ io.on("connection", (socket) => {
       clientPlayerId && reconnectToken && findPlayerByReconnect(clientPlayerId, reconnectToken);
 
     if (isJoinLocked() && !isReconnect) {
-      sendError("game_started", "Diese Runde läuft bereits. Ein Beitritt ist nicht mehr möglich.");
+      sendError("game_started", "Die Runde läuft bereits.");
       return;
     }
 
@@ -133,6 +133,7 @@ io.on("connection", (socket) => {
       const player = findPlayer(clientPlayerId);
       player.isConnected = true;
       player.lastSeenAt = new Date().toISOString();
+      player.ip = ip;
       if (playerName && player.name !== playerName) {
         if (player.canChangeName) player.name = String(playerName).trim().slice(0, 80) || player.name;
       }
@@ -144,8 +145,7 @@ io.on("connection", (socket) => {
         isAdmin: player.isAdmin,
         isHost: player.isHost,
       });
-      io.emit("state", getState(null));
-      io.to(socket.id).emit("state", getState(player.playerId));
+      broadcastState();
       if (typeof ack === "function") ack({ ok: true, rejoin: true });
       return;
     }
@@ -199,8 +199,8 @@ io.on("connection", (socket) => {
     });
 
     if (!result.ok) {
-      if (result.error === "game_started") sendError("game_started", "Diese Runde läuft bereits.");
-      else if (result.error === "room_full") sendError("room_full", "Der Raum ist bereits voll besetzt.");
+      if (result.error === "game_started") sendError("game_started", "Die Runde läuft bereits.");
+      else if (result.error === "room_full") sendError("room_full", "Der Raum ist voll.");
       else sendError("error", result.error || "Beitritt fehlgeschlagen.");
       return;
     }
@@ -276,7 +276,7 @@ io.on("connection", (socket) => {
       const mayor = findPlayer(result.mayorId);
       broadcast("mayor_result", { mayorId: result.mayorId, mayorName: mayor?.name });
     }
-    broadcast("phase_changed", { phase: result.backToDay ? "day" : "night", round: 1 });
+    broadcast("phase_changed", { phase: result.backToDay ? "day" : "night", round: getState(null).round ?? 1 });
     broadcastState();
   });
 
@@ -317,6 +317,7 @@ io.on("connection", (socket) => {
       socket.emit("error", { code: result.error || "forbidden", message: "Der Schuss des Jägers ist jetzt nicht möglich." });
       return;
     }
+    if (result.winner) broadcast("game_end", { winner: result.winner });
     if (result.phase) broadcast("phase_changed", { phase: result.phase });
     broadcastState();
   });
@@ -331,6 +332,7 @@ io.on("connection", (socket) => {
         const victim = findPlayer(result.victimId);
         broadcast("night_victim", { victimId: result.victimId, victimName: victim?.name });
       }
+      if (result.ok && result.winner) broadcast("game_end", { winner: result.winner });
     } else if (stateSnapshot.phase === "day") {
       result = resolveDayPhase(playerId);
       if (result.ok && result.eliminatedId) {
@@ -340,11 +342,12 @@ io.on("connection", (socket) => {
       if (result.ok && result.runoff) broadcast("vote_result", { runoff: true });
       if (result.ok && result.needMayorElection)
         broadcast("phase_changed", { phase: "mayor_election", round: stateSnapshot.round });
+      if (result.ok && result.winner) broadcast("game_end", { winner: result.winner });
     } else if (stateSnapshot.phase === "result") {
       result = advanceFromResult(playerId);
       if (result.ok && result.winner) broadcast("game_end", { winner: result.winner });
     } else {
-      socket.emit("error", { code: "invalid_phase", message: "An dieser Stelle kann keine Phase gewechselt werden." });
+      socket.emit("error", { code: "invalid_phase", message: "Hier ist kein Phasenwechsel möglich." });
       return;
     }
     if (!result.ok) {
@@ -387,11 +390,9 @@ io.on("connection", (socket) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminBan(adminId, {
       targetPlayerId: payload?.targetPlayerId,
-      fingerprint: payload?.fingerprint,
-      ip: payload?.ip,
     });
     if (!result.ok) {
-      socket.emit("error", { code: result.error || "forbidden", message: "Das Sperren ist fehlgeschlagen." });
+      socket.emit("error", { code: result.error || "forbidden", message: "Spieler konnte nicht gesperrt werden." });
       return;
     }
     const targetId = payload?.targetPlayerId;
@@ -412,7 +413,7 @@ io.on("connection", (socket) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = removeBan(adminId, payload?.targetPlayerId);
     if (!result.ok) {
-      socket.emit("error", { code: result.error || "forbidden", message: "Die Entsperrung ist fehlgeschlagen." });
+      socket.emit("error", { code: result.error || "forbidden", message: "Sperre konnte nicht aufgehoben werden." });
       return;
     }
     broadcastState();
@@ -422,7 +423,7 @@ io.on("connection", (socket) => {
     const actorId = getPlayerIdBySocket(socket.id);
     const result = hostKick(actorId, payload?.targetPlayerId);
     if (!result.ok) {
-      socket.emit("error", { code: result.error || "forbidden", message: "Das Entfernen ist fehlgeschlagen." });
+      socket.emit("error", { code: result.error || "forbidden", message: "Spieler konnte nicht entfernt werden." });
       return;
     }
     const targetId = payload?.targetPlayerId;
@@ -442,7 +443,7 @@ io.on("connection", (socket) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminSetHost(adminId, payload?.targetPlayerId);
     if (!result.ok) {
-      socket.emit("error", { code: result.error || "forbidden", message: "Der Host-Wechsel ist fehlgeschlagen." });
+      socket.emit("error", { code: result.error || "forbidden", message: "Host-Wechsel fehlgeschlagen." });
       return;
     }
     broadcastState();
@@ -467,7 +468,7 @@ io.on("connection", (socket) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = hostSkipPhase(playerId);
     if (!result.ok) {
-      socket.emit("error", { code: result.error || "forbidden", message: "Die Phase kann jetzt nicht übersprungen werden." });
+      socket.emit("error", { code: result.error || "forbidden", message: "Phase kann hier nicht übersprungen werden." });
       return;
     }
     if (result.victimId) {
@@ -491,7 +492,6 @@ io.on("connection", (socket) => {
   socket.on("disconnect", (reason) => {
     const playerId = getPlayerIdBySocket(socket.id);
     if (playerId) {
-      const p = findPlayer(playerId);
       setPlayerDisconnected(playerId);
       removeSocketPlayer(socket.id);
       

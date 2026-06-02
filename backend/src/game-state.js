@@ -166,7 +166,9 @@ function maskPlayer(player, viewerPlayerId) {
   const viewer = state.players.find((p) => p.playerId === viewerPlayerId);
   const isDeadViewer = viewer && !viewer.isAlive;
   const isModerator = viewer && viewer.role === "moderator";
-  const showRole = isViewer || (isDeadViewer && state.rules?.revealRolesToDead) || isModerator;
+  const isGameEnd = state.phase === "game_end";
+  // Am Spielende werden alle Rollen für alle sichtbar (Auflösung).
+  const showRole = isViewer || isGameEnd || (isDeadViewer && state.rules?.revealRolesToDead) || isModerator;
 
   const out = {
     playerId: player.playerId,
@@ -183,10 +185,13 @@ function maskPlayer(player, viewerPlayerId) {
   if (showRole && state.phase !== "lobby") {
     out.role = player.role;
   }
-  if (isViewer && player.inLove) {
+  // Verliebte: dem Spieler selbst immer, am Spielende allen (für die Auflösung).
+  if ((isViewer || isGameEnd) && player.inLove) {
     out.inLove = true;
-    const partner = state.players.find((p) => p.inLove && p.playerId !== player.playerId);
-    out.lovePartnerId = partner?.playerId ?? null;
+    if (isViewer) {
+      const partner = state.players.find((p) => p.inLove && p.playerId !== player.playerId);
+      out.lovePartnerId = partner?.playerId ?? null;
+    }
   }
   return out;
 }
@@ -561,11 +566,22 @@ export function finishMayorElection(hostPlayerId) {
 
 // --- Nacht & Tag: Aktionen und Phasenwechsel ---
 
+/**
+ * Baut die Nacht-Subphasen dynamisch: Nur Rollen, die noch leben (und etwas tun
+ * können), bekommen eine Subphase. Werwölfe sind immer der Anker (Host gibt das
+ * Opfer ein). So muss der Host nicht durch leere Phasen klicken.
+ */
 function getNightSubphases() {
-  const base = ["werwolf", "seher", "hexe", "baecker"];
-  const hasAmor = state.players.some((p) => p.role === "amor");
-  if (state.round === 1 && hasAmor) return ["amor", ...base];
-  return base;
+  const aliveWithRole = (role) => state.players.some((p) => p.role === role && p.isAlive);
+  const subs = [];
+  // Amor wählt nur in der ersten Nacht das Liebespaar.
+  if (state.round === 1 && aliveWithRole("amor")) subs.push("amor");
+  subs.push("werwolf");
+  if (aliveWithRole("seher")) subs.push("seher");
+  // Hexe nur, wenn sie lebt und noch mindestens einen Trank besitzt.
+  if (aliveWithRole("hexe") && (!state.witchUsedHeal || !state.witchUsedPoison)) subs.push("hexe");
+  if (aliveWithRole("baecker")) subs.push("baecker");
+  return subs;
 }
 
 function createNightState() {
@@ -946,6 +962,7 @@ export function resolveDayPhase(hostPlayerId) {
     state.day.accusedIds = accusedIds;
     state.day.status = "voting";
     state.day.votes = {};
+    state.day.votingStartedAt = new Date().toISOString();
     schedulePersist();
     return { ok: true, accusedIds };
   }
@@ -1262,6 +1279,12 @@ export function forceUnban(targetPlayerId) {
  */
 export function resetToLobbyAfterGameEnd() {
   if (state.phase !== "game_end") return;
+  doResetToLobby();
+  schedulePersist();
+}
+
+/** Gemeinsamer Reset in die Lobby (Spieler bleiben erhalten, Rollen werden gelöscht). */
+function doResetToLobby() {
   state.phase = "lobby";
   state.mayorElection = null;
   state.night = null;
@@ -1270,13 +1293,28 @@ export function resetToLobbyAfterGameEnd() {
   state.winner = null;
   state.round = 0;
   state.jaegerSourceId = null;
+  state.witchUsedHeal = false;
+  state.witchUsedPoison = false;
   state.players.forEach((p) => {
     p.role = null;
     p.isAlive = true;
     p.isMayor = false;
     p.inLove = false;
+    p.lovePartnerId = null;
   });
+}
+
+/**
+ * Host oder Admin: nach Spielende eine neue Runde mit denselben Spielern starten
+ * (zurück in die Lobby). Funktioniert nur nach Spielende.
+ */
+export function restartToLobby(actorPlayerId) {
+  const actor = findPlayer(actorPlayerId);
+  if (!actor || (!actor.isHost && !actor.isAdmin)) return { ok: false, error: "not_host" };
+  if (state.phase !== "game_end") return { ok: false, error: "invalid_phase" };
+  doResetToLobby();
   schedulePersist();
+  return { ok: true };
 }
 
 /**

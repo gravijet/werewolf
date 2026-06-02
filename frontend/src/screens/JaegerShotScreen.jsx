@@ -13,9 +13,9 @@ export function JaegerShotScreen({ lang }) {
   const jaeger = jaegerSourceId ? state?.players?.find((p) => p.playerId === jaegerSourceId) : null;
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)", padding: "24px 16px" }}>
+    <div className="fade-in" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)", padding: "calc(var(--safe-top) + 24px) 16px 24px" }}>
       <header style={{ textAlign: "center", marginBottom: 32 }}>
-        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 72, height: 72, borderRadius: "50%", background: "var(--md-sys-color-tertiary-container)", color: "var(--md-sys-color-on-tertiary-container)", marginBottom: 16 }}>
+        <div className="pop-in" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 72, height: 72, borderRadius: "50%", background: "var(--md-sys-color-primary-container)", color: "var(--md-sys-color-on-primary-container)", marginBottom: 16 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 40 }}>sports_martial_arts</span>
         </div>
         <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--md-sys-color-on-surface)", margin: "0 0 8px" }}>

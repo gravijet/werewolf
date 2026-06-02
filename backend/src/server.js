@@ -50,6 +50,7 @@ import {
   forceUnban,
   resetState,
   resetToLobbyAfterGameEnd,
+  restartToLobby,
   endGameNow,
 } from "./game-state.js";
 import * as persistence from "./persistence.js";
@@ -57,19 +58,44 @@ import * as persistence from "./persistence.js";
 const app = express();
 const httpServer = createServer(app);
 
+app.disable("x-powered-by");
+
+// CORS-Origins kommagetrennt aus Umgebung; sonst Origin der Anfrage spiegeln (Dev).
+const corsOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "*",
-    credentials: true
+    origin: corsOrigins.length ? corsOrigins : true,
+    credentials: true,
+    methods: ["GET", "POST"],
   },
   pingTimeout: 60000,
   pingInterval: 25000,
+  maxHttpBufferSize: 1e6, // 1 MB – schützt vor übergroßen Payloads
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "64kb" }));
+
+// Defensive Security-Header (nginx setzt in Produktion zusätzlich eigene).
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true, service: "werwolf-service" });
+  const snap = getState(null);
+  res.json({
+    ok: true,
+    service: "werwolf-service",
+    phase: snap.phase,
+    players: snap.players.length,
+    uptime: Math.round(process.uptime()),
+  });
 });
 
 /** Broadcast State an alle im Raum (optional nur an einen Socket). */
@@ -93,137 +119,185 @@ function broadcast(event, data) {
   io.emit(event, data);
 }
 
+/** Einfacher Sliding-Window-Rate-Limiter pro Verbindung. */
+function makeLimiter() {
+  const buckets = new Map();
+  return (key, max, windowMs) => {
+    const now = Date.now();
+    let b = buckets.get(key);
+    if (!b || now > b.resetAt) {
+      b = { count: 0, resetAt: now + windowMs };
+      buckets.set(key, b);
+    }
+    b.count += 1;
+    return b.count <= max;
+  };
+}
+
 io.on("connection", (socket) => {
   const ip =
     socket.handshake.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
     socket.handshake.address;
 
-  socket.on("join", (payload, ack) => {
-    const {
-      playerName,
-      password,
-      reconnectToken,
-      playerId: clientPlayerId,
-      fingerprint,
-    } = payload || {};
+  const allow = makeLimiter();
 
-    const sendError = (code, message) => {
-      socket.emit("join_error", { code, message });
-      if (typeof ack === "function") ack({ ok: false, code, message });
-    };
-
-    if (getState(null).phase === "game_end") {
-      resetToLobbyAfterGameEnd();
-    }
-
-    if (isBanned({ playerId: clientPlayerId, fingerprint, ip })) {
-      sendError("banned", "Du bist für diesen Raum gesperrt.");
-      return;
-    }
-
-    const isReconnect =
-      clientPlayerId && reconnectToken && findPlayerByReconnect(clientPlayerId, reconnectToken);
-
-    if (isJoinLocked() && !isReconnect) {
-      sendError("game_started", "Die Runde läuft bereits.");
-      return;
-    }
-
-    if (isReconnect) {
-      const player = findPlayer(clientPlayerId);
-      player.isConnected = true;
-      player.lastSeenAt = new Date().toISOString();
-      player.ip = ip;
-      if (playerName && player.name !== playerName) {
-        if (player.canChangeName) player.name = String(playerName).trim().slice(0, 80) || player.name;
-      }
-      setSocketPlayer(socket.id, player.playerId);
-      socket.emit("joined", {
-        playerId: player.playerId,
-        reconnectToken: player.reconnectToken,
-        canChangeName: player.canChangeName,
-        isAdmin: player.isAdmin,
-        isHost: player.isHost,
-      });
-      broadcastState();
-      if (typeof ack === "function") ack({ ok: true, rejoin: true });
-      return;
-    }
-
-    if (!playerName || typeof playerName !== "string") {
-      sendError("invalid_name", "Bitte gib einen Namen an.");
-      return;
-    }
-
-    const trimmedName = playerName.trim().slice(0, 80) || "Unbekannt";
-    const isAdmin = password === ADMIN_PASSWORD;
-    if (password !== PLAYER_PASSWORD && !isAdmin) {
-      sendError("wrong_password", "Das Passwort ist nicht korrekt.");
-      return;
-    }
-
-    // Namens-Kollisionen dürfen nicht als Reconnect behandelt werden.
-    // Reconnect ist ausschließlich über playerId + reconnectToken erlaubt.
-    const stateSnapshot = getState(null);
-    const existingPlayerMasked = stateSnapshot.players.find(
-      (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
-    );
-    if (existingPlayerMasked) {
-      const existingPlayer = findPlayer(existingPlayerMasked.playerId);
-      if (existingPlayer) {
-        sendError("name_taken", "Dieser Name ist schon vergeben.");
+  /**
+   * Registriert einen Event-Handler mit Rate-Limiting und Fehler-Kapselung.
+   * So bringt ein einzelner Fehler oder Event-Spam den Server nicht durcheinander.
+   */
+  const safeOn = (event, handler, { max = 60, windowMs = 10000 } = {}) => {
+    socket.on(event, (...args) => {
+      const maybeAck = args[args.length - 1];
+      const ack = typeof maybeAck === "function" ? maybeAck : null;
+      if (!allow(event, max, windowMs)) {
+        socket.emit("error", { code: "rate_limited", message: "Zu viele Anfragen. Bitte kurz warten." });
+        if (ack) {
+          try { ack({ ok: false, code: "rate_limited" }); } catch {}
+        }
         return;
       }
-    }
-
-    if (isJoinLocked()) {
-      sendError("game_started", "Diese Runde läuft bereits. Ein Beitritt ist nicht mehr möglich.");
-      return;
-    }
-
-    const newPlayer = {
-      playerId: randomUUID(),
-      name: trimmedName,
-      isAdmin,
-      reconnectToken: randomUUID(),
-    };
-
-    const result = addPlayer({
-      playerId: newPlayer.playerId,
-      name: newPlayer.name,
-      isAdmin: newPlayer.isAdmin,
-      isHost: false,
-      reconnectToken: newPlayer.reconnectToken,
-      fingerprint,
-      ip,
+      try {
+        handler(...args);
+      } catch (e) {
+        console.error(`[socket:${event}]`, e);
+        socket.emit("error", { code: "server_error", message: "Etwas ist schiefgelaufen." });
+        if (ack) {
+          try { ack({ ok: false, code: "server_error" }); } catch {}
+        }
+      }
     });
+  };
 
-    if (!result.ok) {
-      if (result.error === "game_started") sendError("game_started", "Die Runde läuft bereits.");
-      else if (result.error === "room_full") sendError("room_full", "Der Raum ist voll.");
-      else sendError("error", result.error || "Beitritt fehlgeschlagen.");
-      return;
-    }
+  safeOn(
+    "join",
+    (payload, ack) => {
+      const {
+        playerName,
+        password,
+        reconnectToken,
+        playerId: clientPlayerId,
+        fingerprint,
+      } = payload || {};
 
-    ensureHost();
-    setSocketPlayer(socket.id, result.player.playerId);
+      const sendError = (code, message) => {
+        socket.emit("join_error", { code, message });
+        if (typeof ack === "function") ack({ ok: false, code, message });
+      };
 
-    socket.emit("joined", {
-      playerId: result.player.playerId,
-      reconnectToken: result.player.reconnectToken,
-      canChangeName: result.player.canChangeName,
-      isAdmin: result.player.isAdmin,
-      isHost: result.player.isHost,
-    });
-    broadcastState();
-    broadcast("player_joined", {
-      player: getState(null).players.find((p) => p.playerId === result.player.playerId),
-    });
+      if (getState(null).phase === "game_end") {
+        resetToLobbyAfterGameEnd();
+      }
 
-    if (typeof ack === "function") ack({ ok: true, rejoin: false });
-  });
+      if (isBanned({ playerId: clientPlayerId, fingerprint, ip })) {
+        sendError("banned", "Du bist für diesen Raum gesperrt.");
+        return;
+      }
 
-  socket.on("set_name", (payload) => {
+      const isReconnect =
+        clientPlayerId && reconnectToken && findPlayerByReconnect(clientPlayerId, reconnectToken);
+
+      if (isJoinLocked() && !isReconnect) {
+        sendError("game_started", "Die Runde läuft bereits.");
+        return;
+      }
+
+      if (isReconnect) {
+        const player = findPlayer(clientPlayerId);
+        player.isConnected = true;
+        player.lastSeenAt = new Date().toISOString();
+        player.ip = ip;
+        if (playerName && player.name !== playerName) {
+          if (player.canChangeName) player.name = String(playerName).trim().slice(0, 80) || player.name;
+        }
+        setSocketPlayer(socket.id, player.playerId);
+        socket.emit("joined", {
+          playerId: player.playerId,
+          reconnectToken: player.reconnectToken,
+          canChangeName: player.canChangeName,
+          isAdmin: player.isAdmin,
+          isHost: player.isHost,
+        });
+        broadcastState();
+        if (typeof ack === "function") ack({ ok: true, rejoin: true });
+        return;
+      }
+
+      if (!playerName || typeof playerName !== "string") {
+        sendError("invalid_name", "Bitte gib einen Namen an.");
+        return;
+      }
+
+      const trimmedName = playerName.trim().slice(0, 80) || "Unbekannt";
+      const isAdmin = password === ADMIN_PASSWORD;
+      if (password !== PLAYER_PASSWORD && !isAdmin) {
+        sendError("wrong_password", "Das Passwort ist nicht korrekt.");
+        return;
+      }
+
+      // Namens-Kollisionen dürfen nicht als Reconnect behandelt werden.
+      // Reconnect ist ausschließlich über playerId + reconnectToken erlaubt.
+      const stateSnapshot = getState(null);
+      const existingPlayerMasked = stateSnapshot.players.find(
+        (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (existingPlayerMasked) {
+        const existingPlayer = findPlayer(existingPlayerMasked.playerId);
+        if (existingPlayer) {
+          sendError("name_taken", "Dieser Name ist schon vergeben.");
+          return;
+        }
+      }
+
+      if (isJoinLocked()) {
+        sendError("game_started", "Diese Runde läuft bereits. Ein Beitritt ist nicht mehr möglich.");
+        return;
+      }
+
+      const newPlayer = {
+        playerId: randomUUID(),
+        name: trimmedName,
+        isAdmin,
+        reconnectToken: randomUUID(),
+      };
+
+      const result = addPlayer({
+        playerId: newPlayer.playerId,
+        name: newPlayer.name,
+        isAdmin: newPlayer.isAdmin,
+        isHost: false,
+        reconnectToken: newPlayer.reconnectToken,
+        fingerprint,
+        ip,
+      });
+
+      if (!result.ok) {
+        if (result.error === "game_started") sendError("game_started", "Die Runde läuft bereits.");
+        else if (result.error === "room_full") sendError("room_full", "Der Raum ist voll.");
+        else sendError("error", result.error || "Beitritt fehlgeschlagen.");
+        return;
+      }
+
+      ensureHost();
+      setSocketPlayer(socket.id, result.player.playerId);
+
+      socket.emit("joined", {
+        playerId: result.player.playerId,
+        reconnectToken: result.player.reconnectToken,
+        canChangeName: result.player.canChangeName,
+        isAdmin: result.player.isAdmin,
+        isHost: result.player.isHost,
+      });
+      broadcastState();
+      broadcast("player_joined", {
+        player: getState(null).players.find((p) => p.playerId === result.player.playerId),
+      });
+
+      if (typeof ack === "function") ack({ ok: true, rejoin: false });
+    },
+    { max: 20, windowMs: 30000 }
+  );
+
+  safeOn("set_name", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     if (!playerId) return;
     const result = setPlayerName(playerId, payload?.newName);
@@ -235,7 +309,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("start_game", () => {
+  safeOn("start_game", () => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = startGame(playerId);
     if (!result.ok) {
@@ -255,7 +329,18 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("mayor_vote", (payload) => {
+  safeOn("restart_game", () => {
+    const playerId = getPlayerIdBySocket(socket.id);
+    const result = restartToLobby(playerId);
+    if (!result.ok) {
+      socket.emit("error", { code: result.error || "forbidden", message: "Neue Runde nicht möglich." });
+      return;
+    }
+    broadcast("phase_changed", { phase: "lobby", round: 0 });
+    broadcastState();
+  });
+
+  safeOn("mayor_vote", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = submitMayorVote(playerId, payload?.targetPlayerId);
     if (!result.ok) {
@@ -265,7 +350,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("mayor_phase_next", () => {
+  safeOn("mayor_phase_next", () => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = finishMayorElection(playerId);
     if (!result.ok) {
@@ -280,7 +365,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("night_action", (payload) => {
+  safeOn("night_action", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = submitNightAction(playerId, payload);
     if (!result.ok) {
@@ -290,7 +375,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("day_accuse", (payload) => {
+  safeOn("day_accuse", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = submitDayAccusation(playerId, payload?.targetPlayerId);
     if (!result.ok) {
@@ -300,7 +385,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("day_vote", (payload) => {
+  safeOn("day_vote", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = submitDayVote(playerId, payload?.targetPlayerId);
     if (!result.ok) {
@@ -310,7 +395,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("jaeger_kill", (payload) => {
+  safeOn("jaeger_kill", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = submitJaegerKill(playerId, payload?.targetId ?? payload?.targetPlayerId);
     if (!result.ok) {
@@ -322,7 +407,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("phase_next", () => {
+  safeOn("phase_next", () => {
     const playerId = getPlayerIdBySocket(socket.id);
     const stateSnapshot = getState(null);
     let result;
@@ -358,7 +443,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("admin_change_name", (payload) => {
+  safeOn("admin_change_name", (payload) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminSetPlayerName(adminId, payload?.targetPlayerId, payload?.newName);
     if (!result.ok) {
@@ -372,7 +457,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("admin_lock_name", (payload) => {
+  safeOn("admin_lock_name", (payload) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminLockName(adminId, payload?.targetPlayerId, payload?.lock !== false);
     if (!result.ok) {
@@ -386,7 +471,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("admin_ban", (payload) => {
+  safeOn("admin_ban", (payload) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminBan(adminId, {
       targetPlayerId: payload?.targetPlayerId,
@@ -409,7 +494,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("admin_unban", (payload) => {
+  safeOn("admin_unban", (payload) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = removeBan(adminId, payload?.targetPlayerId);
     if (!result.ok) {
@@ -419,7 +504,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("host_kick", (payload) => {
+  safeOn("host_kick", (payload) => {
     const actorId = getPlayerIdBySocket(socket.id);
     const result = hostKick(actorId, payload?.targetPlayerId);
     if (!result.ok) {
@@ -439,7 +524,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("admin_set_host", (payload) => {
+  safeOn("admin_set_host", (payload) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminSetHost(adminId, payload?.targetPlayerId);
     if (!result.ok) {
@@ -449,7 +534,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("host_set_mayor", (payload) => {
+  safeOn("host_set_mayor", (payload) => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = hostSetMayor(playerId, payload?.mayorPlayerId ?? null);
     if (!result.ok) {
@@ -464,7 +549,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("host_skip_phase", () => {
+  safeOn("host_skip_phase", () => {
     const playerId = getPlayerIdBySocket(socket.id);
     const result = hostSkipPhase(playerId);
     if (!result.ok) {
@@ -479,7 +564,7 @@ io.on("connection", (socket) => {
     broadcastState();
   });
 
-  socket.on("admin_set_rules", (payload) => {
+  safeOn("admin_set_rules", (payload) => {
     const adminId = getPlayerIdBySocket(socket.id);
     const result = adminSetRules(adminId, payload?.rules);
     if (!result.ok) {
@@ -490,23 +575,27 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", (reason) => {
-    const playerId = getPlayerIdBySocket(socket.id);
-    if (playerId) {
-      setPlayerDisconnected(playerId);
-      removeSocketPlayer(socket.id);
-      
-      // If we are still in lobby, simply remove the player completely
-      if (!isJoinLocked()) {
-        removePlayer(playerId);
+    try {
+      const playerId = getPlayerIdBySocket(socket.id);
+      if (playerId) {
+        setPlayerDisconnected(playerId);
+        removeSocketPlayer(socket.id);
+
+        // In der Lobby: Spieler vollständig entfernen.
+        if (!isJoinLocked()) {
+          removePlayer(playerId);
+        }
+
+        broadcast("player_left", { playerId });
+        broadcastState();
       }
-      
-      broadcast("player_left", { playerId });
-      broadcastState();
+    } catch (e) {
+      console.error("[socket:disconnect]", e);
     }
   });
 });
 
-// Beim Neustart: kein Spielstand laden – immer mit leerer Lobby starten
+// Beim Neustart: kein Spielstand laden – immer mit leerer Lobby starten.
 
 const PORT = Number(process.env.PORT) || 3000;
 httpServer.listen(PORT, () => {
@@ -514,8 +603,26 @@ httpServer.listen(PORT, () => {
   startCli().catch((e) => console.warn("CLI:", e.message));
 });
 
+// Graceful Shutdown (z. B. unter pm2/systemd).
+function shutdown(signal) {
+  console.log(`\n${signal} empfangen – Server wird beendet …`);
+  try {
+    persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+  } catch {}
+  io.close(() => {
+    httpServer.close(() => process.exit(0));
+  });
+  // Notausstieg, falls Verbindungen hängen.
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("unhandledRejection", (reason) => console.error("unhandledRejection:", reason));
+process.on("uncaughtException", (err) => console.error("uncaughtException:", err));
+
 /** Einfache CLI: Befehle über stdin (ban, unban, kick, end, list, state, help). */
 async function startCli() {
+  if (!process.stdin.isTTY) return; // unter pm2/systemd kein interaktives stdin
   const readline = await import("readline");
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -560,6 +667,7 @@ CLI-Befehle (Enter zum Ausführen):
       const result = hostKick(actor, arg);
       if (result.ok) {
         console.log("  Spieler gekickt.");
+        broadcastState();
       } else {
         console.log("  Fehler:", result.error);
       }
@@ -569,6 +677,7 @@ CLI-Befehle (Enter zum Ausführen):
       addBan({ playerId: arg });
       removePlayer(arg);
       persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      broadcastState();
       console.log("  Spieler gebannt.");
       return;
     }
@@ -581,12 +690,14 @@ CLI-Befehle (Enter zum Ausführen):
     if (cmd === "end") {
       endGameNow("village");
       persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      broadcastState();
       console.log("  Spiel beendet.");
       return;
     }
     if (cmd === "reset") {
       resetState();
       persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      broadcastState();
       console.log("  State zurückgesetzt.");
       return;
     }

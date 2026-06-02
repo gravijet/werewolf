@@ -27,9 +27,27 @@ npm run dev
 
 Server läuft auf `http://localhost:3000` (oder `PORT` aus Umgebung).
 
+## Tests
+
+```bash
+npm test
+```
+
+Verwendet den eingebauten Node-Test-Runner (keine zusätzlichen Abhängigkeiten). Abgedeckt sind die
+Rollen-Engine (Verteilung, Überlauf, Auffüllen) und die Spiellogik (Host-Vergabe, Rollenvergabe,
+dynamische Nacht-Phasen, Rollen-Enthüllung am Ende, Neustart).
+
 ## Endpunkte
 
-- `GET /health` – Health-Check (JSON `{ ok: true }`)
+- `GET /health` – Health-Check, JSON `{ ok, service, phase, players, uptime }`
+
+## Sicherheit & Robustheit
+
+- **Rate-Limiting** pro Verbindung (strenger für `join`, schützt vor Passwort-Raten/Spam).
+- Alle Socket-Handler sind in Fehler-Kapselung gewrappt – ein Fehler bringt den Server nicht aus dem Tritt.
+- Begrenzte Payload-Größe (`maxHttpBufferSize`, JSON-Limit) und CORS über `CORS_ORIGIN`.
+- Sensible Felder (`reconnectToken`, `ip`, `fingerprint`) werden nie an Clients gesendet.
+- Graceful Shutdown bei SIGINT/SIGTERM (State wird gesichert).
 
 ## Socket.io
 

@@ -9,27 +9,32 @@ export function ConfirmModal({ open, title, message, confirmLabel, cancelLabel, 
   if (!open) return null;
   return (
     <div
+      className="fade-in"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(255, 255, 255, 0.86)",
+        inset: 0,
+        background: "var(--scrim)",
+        backdropFilter: "blur(3px)",
+        WebkitBackdropFilter: "blur(3px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 1000,
+        zIndex: 1500,
         padding: 20,
       }}
     >
       <Card
+        className="pop-in"
+        onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: 420,
           width: "100%",
           padding: "32px 28px 26px",
           background: "var(--md-sys-color-surface)",
-          border: "1px solid var(--md-sys-color-outline)",
+          border: "1px solid var(--hairline)",
           borderRadius: "var(--radius-xl)",
           boxShadow: "var(--shadow-3)",
         }}

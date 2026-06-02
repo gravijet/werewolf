@@ -32,7 +32,7 @@ export function MayorScreen({ lang }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = React.useState(false);
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
+    <div className="fade-in" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
       <header
         style={{
           background: "var(--md-sys-color-surface)",
@@ -50,7 +50,7 @@ export function MayorScreen({ lang }) {
           <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 72, height: 72, borderRadius: "50%", background: "var(--md-sys-color-secondary-container)", color: "var(--md-sys-color-on-secondary-container)", marginBottom: 20 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 40 }}>military_tech</span>
           </div>
-          <p style={{ fontSize: 28, fontWeight: 800, color: "var(--md-sys-color-on-surface)", margin: 0, letterSpacing: "-0.02em" }}>{t(lang, "mayorElection")}</p>
+          <p className="gradient-text" style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>{t(lang, "mayorElection")}</p>
         </div>
       </header>
 

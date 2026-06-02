@@ -2,8 +2,10 @@
 
 Digitale Unterstützung für eine physische Werwolf-Spielrunde: ein gemeinsamer Spielraum mit Echtzeit-Sync (Socket.io), Mobile-First-UI und Host-Audio.
 
-- **Backend:** Node.js (Express) + Socket.io, ein aktiver Raum, Spielzustand im Speicher
-- **Frontend:** React (Vite), Material Design, i18n (DE/EN), Host-Sprachanweisungen (deutsch)
+- **Backend:** Node.js (Express) + Socket.io, ein aktiver Raum, Spielzustand im Speicher, Rate-Limiting & Tests
+- **Frontend:** React (Vite), farbenfrohes Material-You-Design mit Dark Mode & phasenabhängiger Farbwelt, i18n (DE/EN/SV), mehrsprachige Host-Sprachanweisungen
+
+**Highlights:** dynamische Nacht-Phasen (überspringt automatisch Rollen, die nicht im Spiel sind) · Rollen-Auflösung mit Konfetti am Spielende · „Neue Runde" für den Host · Einladen per Link teilen · Diskussions-Timer · Dark Mode.
 
 ---
 
@@ -44,7 +46,7 @@ Mehrere Tabs/Geräte mit dem gleichen Frontend-URL nutzen; ein Host startet das 
 
 1. **Backend:** Im Ordner `backend` → `npm install` → `npm start`. Im Browser **http://localhost:3000/health** öffnen → es erscheint `{"ok":true,"service":"werwolf-service"}`.
 2. **Frontend:** Im Ordner `frontend` → `npm install` → `npm run dev`. **http://localhost:5173** öffnen → Join-Maske mit Name/Passwort erscheint.
-3. **Spielablauf:** Mit Passwort `WOLFGAME` beitreten → Lobby mit Raumcode. In einem zweiten Tab erneut beitreten → zweiter Spieler sichtbar. Erster Tab ist Host → „Spiel starten“ (ab 6 Spielern möglich; für Tests in `backend` ggf. `minPlayers` in den Regeln anpassen oder 6 Tabs öffnen).
+3. **Spielablauf:** Mit Passwort `WOLFGAME` beitreten → Lobby. In weiteren Tabs erneut beitreten → weitere Spieler sichtbar. Erster Tab ist Host → „Spiel starten“ (ab 3 Mitspielern möglich; der Host zählt als Spielleitung nicht mit).
 
 Die **index.html** im Projektroot ist nur eine Hinweis-Seite („Start: cd frontend …“). Die eigentliche App ist das **Frontend** unter `frontend/` (Einstieg: `frontend/index.html` → lädt per Vite `src/main.jsx`).
 

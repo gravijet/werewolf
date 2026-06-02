@@ -126,6 +126,24 @@ export function clearStoredCredentials() {
   } catch {}
 }
 
+const KEY_THEME = "werwolf_theme";
+
+/** Liefert das gespeicherte Theme ("light" | "dark"). Standard: light. */
+export function getStoredTheme() {
+  try {
+    const t = localStorage.getItem(KEY_THEME);
+    return t === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+export function setStoredTheme(theme) {
+  try {
+    localStorage.setItem(KEY_THEME, theme === "dark" ? "dark" : "light");
+  } catch {}
+}
+
 const KEY_LAST_JOIN_ERROR = "werwolf_lastJoinError";
 const JOIN_ERROR_COOKIE_MAX_AGE = 86400; // 1 Tag (in Sekunden)
 

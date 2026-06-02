@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useGame } from "../context/GameContext";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
@@ -7,6 +7,7 @@ import { t } from "../i18n/translations";
 
 export function LobbyScreen({ lang, onOpenAdmin }) {
   const { state, me, emit, leave } = useGame();
+  const [copied, setCopied] = useState(false);
   const players = state?.players ?? [];
   const rules = state?.rules ?? {};
   const connectedCount = players.filter((p) => p.isConnected && !p.isHost).length;
@@ -29,28 +30,51 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
           ? "startRolesMismatch"
           : null;
 
+  const inviteUrl =
+    typeof window !== "undefined" ? window.location.origin + window.location.pathname : "";
+
+  const doCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = inviteUrl;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleInvite = async () => {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: t(lang, "appTitle"), text: t(lang, "shareInvite"), url: inviteUrl });
+        return;
+      } catch {
+        /* Nutzer hat abgebrochen → trotzdem kopieren */
+      }
+    }
+    doCopy();
+  };
+
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        background: "transparent",
-      }}
-    >
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "transparent" }}>
       <header
         style={{
-          background: "var(--md-sys-color-surface)",
-          paddingLeft: "max(16px, var(--safe-left))",
-          paddingRight: "max(16px, var(--safe-right))",
-          paddingTop: "max(16px, var(--safe-top))",
-          paddingBottom: 16,
+          padding: "calc(var(--safe-top) + 16px) max(16px, var(--safe-right)) 16px max(16px, var(--safe-left))",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <Avatar name={me?.name} size={52} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--md-sys-color-on-surface)", letterSpacing: "-0.02em" }}>
+            <div className="gradient-text" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
               {t(lang, "lobby")}
             </div>
             <div style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)", marginTop: 2 }}>
@@ -67,8 +91,9 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
                 height: 48,
                 padding: 0,
                 borderRadius: "50%",
-                border: "none",
-                background: "transparent",
+                border: "1px solid var(--hairline)",
+                background: "var(--md-sys-color-surface)",
+                boxShadow: "var(--shadow-1)",
                 cursor: "pointer",
                 color: "var(--md-sys-color-on-surface-variant)",
                 display: "flex",
@@ -86,93 +111,148 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
       <main
         style={{
           flex: 1,
-          padding: "30px 20px",
-          paddingLeft: "max(14px, var(--safe-left))",
-          paddingRight: "max(30px, var(--safe-right))",
+          width: "min(640px, 100%)",
+          margin: "0 auto",
+          padding: "12px 20px 30px",
+          paddingLeft: "max(16px, var(--safe-left))",
+          paddingRight: "max(16px, var(--safe-right))",
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", boxShadow: "var(--shadow-3)" }}>
-          <div
-            style={{
-              padding: "16px 20px",
-              background: "var(--md-sys-color-surface)",
-              borderTopLeftRadius: "var(--radius-xl)",
-              borderTopRightRadius: "var(--radius-xl)",
-            }}
-          >
-            <span style={{ fontWeight: 600, fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {t(lang, "players")} ({players.filter(p => !p.isHost).length})
+        {/* Einladen / Link teilen */}
+        <Card
+          className="slide-up"
+          style={{
+            padding: "18px 20px",
+            marginBottom: 20,
+            background: "var(--hero-gradient)",
+            color: "#fff",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 30 }}>group_add</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{t(lang, "invite")}</div>
+              <div style={{ fontSize: 13, opacity: 0.92, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t(lang, "shareInvite")}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="md-state-layer"
+              onClick={handleInvite}
+              aria-label={t(lang, copied ? "linkCopied" : "copyLink")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "10px 16px",
+                borderRadius: 999,
+                border: "none",
+                background: "rgba(255,255,255,0.22)",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                {copied ? "check" : "share"}
+              </span>
+              {copied ? t(lang, "linkCopied") : t(lang, "invite")}
+            </button>
+          </div>
+        </Card>
+
+        <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", boxShadow: "var(--shadow-2)" }}>
+          <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {t(lang, "players")}
+            </span>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                padding: "3px 12px",
+                borderRadius: 999,
+                background: connectedCount >= minPlayers ? "var(--success-bg)" : "var(--md-sys-color-surface-variant)",
+                color: connectedCount >= minPlayers ? "var(--success)" : "var(--md-sys-color-on-surface-variant)",
+              }}
+            >
+              {connectedCount} / {minPlayers}+
             </span>
           </div>
-          {players.map((p, i) => {
-            const isMe = p.playerId === me?.playerId;
-            const isLast = i === players.length - 1;
-            return (
-              <div
-                key={p.playerId}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  padding: i % 2 === 0 ? "16px 20px" : "17px 20px",
-                  background: isMe ? "var(--md-sys-color-secondary-container)" : "transparent",
-                  boxShadow: isLast ? "none" : "inset 0 -1px 0 rgba(0, 0, 0, 0.05)",
-                  borderBottomLeftRadius: isLast ? "var(--radius-xl)" : 0,
-                  borderBottomRightRadius: isLast ? "var(--radius-xl)" : 0,
-                }}
-              >
-                <Avatar name={p.name} size={44} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ 
-                    fontSize: 16, 
-                    fontWeight: 600, 
-                    color: isMe ? "var(--md-sys-color-on-secondary-container)" : "var(--md-sys-color-on-surface)",
-                  }}>
-                    {p.name}{" "}
-                    {isMe && <span style={{ fontSize: 14, color: "var(--md-sys-color-primary)", fontWeight: 700 }}>({t(lang, "you")})</span>}
+          <div className="stagger">
+            {players.map((p, i) => {
+              const isMe = p.playerId === me?.playerId;
+              const isLast = i === players.length - 1;
+              return (
+                <div
+                  key={p.playerId}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                    padding: "14px 20px",
+                    background: isMe ? "var(--md-sys-color-primary-container)" : "transparent",
+                    borderBottom: isLast ? "none" : "1px solid var(--hairline)",
+                  }}
+                >
+                  <Avatar name={p.name} size={44} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: isMe ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface)",
+                    }}>
+                      {p.name}{" "}
+                      {isMe && <span style={{ fontSize: 14, color: "var(--md-sys-color-primary)", fontWeight: 700 }}>({t(lang, "you")})</span>}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: isMe ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface-variant)", marginTop: 2, opacity: 0.85 }}>
+                      {p.isHost ? t(lang, "host") : t(lang, "connected")}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: isMe ? "var(--md-sys-color-on-secondary-container)" : "var(--md-sys-color-on-surface-variant)", marginTop: 2, opacity: 0.8 }}>
-                    {p.isHost ? t(lang, "host") : t(lang, "connected")}
-                  </div>
-                </div>
-                {p.isHost && (
+                  {p.isHost && (
+                    <span
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: "var(--md-sys-color-primary)",
+                        color: "var(--md-sys-color-on-primary)",
+                      }}
+                    >
+                      {t(lang, "host")}
+                    </span>
+                  )}
                   <span
                     style={{
-                      padding: "4px 10px",
-                  borderRadius: "12px 18px 14px 20px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      background: "var(--md-sys-color-primary)",
-                      color: "var(--md-sys-color-on-primary)",
+                      width: 11,
+                      height: 11,
+                      borderRadius: "50%",
+                      background: p.isConnected ? "var(--success)" : "var(--md-sys-color-error)",
+                      boxShadow: p.isConnected ? "0 0 0 3px var(--success-bg)" : "none",
+                      flexShrink: 0,
                     }}
-                  >
-                    {t(lang, "host")}
-                  </span>
-                )}
-                <span
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    background: p.isConnected ? "var(--success)" : "var(--md-sys-color-error)",
-                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.1)",
-                  }}
-                />
-              </div>
-            );
-          })}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </Card>
       </main>
 
       <footer
         style={{
+          width: "min(640px, 100%)",
+          margin: "0 auto",
           padding: "20px 16px",
           paddingBottom: "max(20px, var(--safe-bottom))",
           paddingLeft: "max(16px, var(--safe-left))",
           paddingRight: "max(16px, var(--safe-right))",
-          background: "var(--md-sys-color-surface)",
           display: "flex",
           flexDirection: "column",
           gap: 12,
@@ -181,18 +261,11 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
         {isHostOrAdmin ? (
           <>
             <Button fullWidth disabled={!canStart} onClick={() => emit("start_game")} style={{ padding: "16px", fontSize: 16 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>play_arrow</span>
               {t(lang, "startGame")}
             </Button>
             {startDisabledReason && (
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 14,
-                  color: "var(--md-sys-color-error)",
-                  textAlign: "center",
-                  fontWeight: 600,
-                }}
-              >
+              <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-error)", textAlign: "center", fontWeight: 600 }}>
                 {t(lang, startDisabledReason)}
               </p>
             )}

@@ -1,5 +1,7 @@
 /**
- * Passwörter und feste Werte (in Produktion aus Umgebungsvariablen lesen).
+ * Passwörter und feste Werte.
+ * In Produktion IMMER über Umgebungsvariablen setzen (PLAYER_PASSWORD / ADMIN_PASSWORD).
+ * Die Defaults hier dienen nur der lokalen Entwicklung.
  */
 export const PLAYER_PASSWORD =
   (typeof process !== "undefined" && process.env.PLAYER_PASSWORD) || "WOLFGAME";
@@ -8,13 +10,20 @@ export const ADMIN_PASSWORD =
 
 export const DEFAULT_ROOM_CODE = "WOLF";
 
+/**
+ * Obergrenze für Spieler in einem Raum. Endlicher Wert, damit der State
+ * JSON-serialisierbar bleibt (Infinity würde bei JSON.stringify zu null werden
+ * und die Beitritts-Prüfung kaputt machen).
+ */
+export const MAX_PLAYERS = 50;
+
 export const DEFAULT_RULES = {
   minPlayers: 3,
-  maxPlayers: Infinity,
+  maxPlayers: MAX_PLAYERS,
   voteDurationSeconds: 180,
   mayorElectionEnabled: true,
   revealRolesToDead: true,
-  seherMode: "good_evil", // "good_evil" or "exact_role"
+  seherMode: "good_evil", // "good_evil" oder "exact_role"
   roles: {
     werwolf: { count: "1/3", enabled: true },
     seher: { count: 1, enabled: true },

@@ -5,7 +5,6 @@ import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { t } from "../i18n/translations";
-import { setStoredLanguage } from "../i18n/translations";
 
 export function JoinScreen({ lang, setLang }) {
   const { join, joinError, setJoinError, state, me } = useGame();
@@ -69,40 +68,30 @@ export function JoinScreen({ lang, setLang }) {
         gap: 32,
       }}
     >
-      <div style={{ position: "absolute", top: "max(16px, var(--safe-top))", right: "max(16px, var(--safe-right))" }}>
-        <select
-          value={lang}
-          onChange={(e) => {
-            setStoredLanguage(e.target.value);
-            setLang(e.target.value);
-          }}
+      <div className="fade-in" style={{ textAlign: "center", marginBottom: 6, maxWidth: 540 }}>
+        <div
+          className="floaty"
           style={{
-            padding: "10px 14px",
-            borderRadius: 20,
-            border: "1px solid transparent",
-            background: "var(--md-sys-color-surface)",
-            fontSize: 14,
-            fontWeight: 500,
-            color: "var(--md-sys-color-on-surface)",
-            cursor: "pointer",
-            outline: "none",
-            boxShadow: "var(--shadow-1)",
+            width: 88,
+            height: 88,
+            margin: "0 auto 22px",
+            borderRadius: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--hero-gradient)",
+            boxShadow: "var(--shadow-glow)",
           }}
         >
-          <option value="de">DE</option>
-          <option value="en">EN</option>
-          <option value="sv">SV</option>
-        </select>
-      </div>
-
-      <div style={{ textAlign: "center", marginBottom: 6, maxWidth: 540 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 48, color: "#fff" }}>pets</span>
+        </div>
         <h1
+          className="gradient-text"
           style={{
-            fontSize: 42,
-            fontWeight: 500,
-            color: "var(--md-sys-color-on-surface)",
+            fontSize: 48,
+            fontWeight: 800,
             marginBottom: 0,
-              letterSpacing: "-0.01em",
+            letterSpacing: "-0.03em",
           }}
         >
           {t(lang, "appTitle")}
@@ -113,7 +102,7 @@ export function JoinScreen({ lang, setLang }) {
               fontSize: 18,
               fontWeight: 400,
               color: "var(--md-sys-color-on-surface-variant)",
-            marginTop: 10,
+              marginTop: 10,
               marginBottom: 0,
               letterSpacing: "-0.01em",
             }}

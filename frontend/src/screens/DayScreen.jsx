@@ -4,6 +4,7 @@ import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { DiscussionTimer } from "../components/DiscussionTimer";
 import { t } from "../i18n/translations";
 
 export function DayScreen({ lang }) {
@@ -12,6 +13,7 @@ export function DayScreen({ lang }) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const day = state?.day;
   const night = state?.night;
+  const rules = state?.rules ?? {};
   const victimId = night?.victimId;
   const victim = victimId ? state?.players?.find((p) => p.playerId === victimId) : null;
   const alive = (state?.players ?? []).filter((p) => p.isAlive);
@@ -178,15 +180,20 @@ export function DayScreen({ lang }) {
 
         {!iAmDead && !isAccusing && (
           <Card variant="elevated" style={{ padding: 0, marginBottom: 32, borderRadius: "var(--radius-xl)", overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", background: "var(--md-sys-color-surface)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "16px 20px", background: "var(--md-sys-color-surface)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
               <span style={{ fontWeight: 600, fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 {t(lang, "voting")} · {accusedIds.length > 0 ? t(lang, "dayVoteOnAccused") : t(lang, "voteWho")}
               </span>
-              {day?.status !== "decided" && (
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-primary)" }}>
-                  {Object.keys(votes).length} / {voterCount} {t(lang, "votes")}
-                </span>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {day?.status === "voting" && (
+                  <DiscussionTimer lang={lang} startedAt={day?.votingStartedAt} durationSeconds={rules?.voteDurationSeconds} />
+                )}
+                {day?.status !== "decided" && (
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-primary)" }}>
+                    {Object.keys(votes).length} / {voterCount} {t(lang, "votes")}
+                  </span>
+                )}
+              </div>
             </div>
             {candidates.length === 0 && day?.status !== "decided" ? (
               <div style={{ padding: 24, textAlign: "center", color: "var(--md-sys-color-on-surface-variant)" }}>

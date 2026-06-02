@@ -1,25 +1,57 @@
 import { useCallback } from "react";
 
+/** Sprachanweisungen für die Spielleitung pro Sprache. */
 export const PHRASES = {
-  mayor_election: "Bürgermeisterwahl. Jetzt abstimmen.",
-  night: "Nacht. Alle Augen schließen.",
-  werwolf: "Werwölfe sind am Zug. Ziel wählen.",
-  seher: "Seher ist am Zug. Eine Person prüfen.",
-  hexe: "Hexe ist am Zug. Heilen oder vergiften.",
-  day: "Tag. Alle Augen öffnen.",
+  de: {
+    mayor_election: "Bürgermeisterwahl. Jetzt abstimmen.",
+    night: "Die Nacht beginnt. Alle Augen schließen.",
+    amor: "Amor erwacht und wählt das Liebespaar.",
+    werwolf: "Die Werwölfe erwachen und wählen ihr Opfer.",
+    seher: "Die Seherin erwacht und prüft eine Person.",
+    hexe: "Die Hexe erwacht. Heilen oder vergiften.",
+    baecker: "Der Bäcker erwacht und wählt eine Person.",
+    day: "Der Tag bricht an. Alle Augen öffnen.",
+  },
+  en: {
+    mayor_election: "Mayor election. Cast your votes.",
+    night: "Night falls. Everyone, close your eyes.",
+    amor: "Cupid awakes and chooses the lovers.",
+    werwolf: "The werewolves awake and choose their victim.",
+    seher: "The seer awakes and inspects a person.",
+    hexe: "The witch awakes. Heal or poison.",
+    baecker: "The baker awakes and chooses a person.",
+    day: "Day breaks. Everyone, open your eyes.",
+  },
+  sv: {
+    mayor_election: "Borgmästarval. Rösta nu.",
+    night: "Natten faller. Alla blundar.",
+    amor: "Amor vaknar och väljer de älskande.",
+    werwolf: "Varulvarna vaknar och väljer sitt offer.",
+    seher: "Siaren vaknar och granskar en person.",
+    hexe: "Häxan vaknar. Hela eller förgifta.",
+    baecker: "Bagaren vaknar och väljer en person.",
+    day: "Dagen gryr. Alla öppnar ögonen.",
+  },
 };
 
-export function useHostAudio(phase, subPhase, isHost) {
+const LANG_TAGS = { de: "de-DE", en: "en-US", sv: "sv-SE" };
+
+export function useHostAudio(phase, subPhase, isHost, lang = "de") {
   const speakCurrent = useCallback(() => {
     if (!isHost || typeof window === "undefined" || !window.speechSynthesis) return;
-    const toSpeak = subPhase ? PHRASES[subPhase] : PHRASES[phase];
+    const dict = PHRASES[lang] || PHRASES.de;
+    const toSpeak = (subPhase && dict[subPhase]) || dict[phase];
     if (!toSpeak) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(toSpeak);
-    u.lang = "de-DE";
-    u.rate = 0.9;
+    const tag = LANG_TAGS[lang] || "de-DE";
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find((v) => v.lang === tag) || voices.find((v) => v.lang?.startsWith(lang));
+    if (voice) u.voice = voice;
+    u.lang = tag;
+    u.rate = 0.95;
     window.speechSynthesis.speak(u);
-  }, [phase, subPhase, isHost]);
+  }, [phase, subPhase, isHost, lang]);
 
   return { speakCurrent };
 }

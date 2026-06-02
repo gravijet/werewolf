@@ -20,7 +20,7 @@ export function NightScreen({ lang }) {
   const [amorLover2, setAmorLover2] = useState(null);
   const [baeckerTarget, setBaeckerTarget] = useState(null);
 
-  const { speakCurrent } = useHostAudio(state?.phase, night?.subPhase, me?.isHost);
+  const { speakCurrent } = useHostAudio(state?.phase, night?.subPhase, me?.isHost, lang);
 
   const myPlayer = (state?.players ?? []).find((p) => p.playerId === me?.playerId);
   const lovePartnerId = myPlayer?.lovePartnerId;
@@ -55,6 +55,7 @@ export function NightScreen({ lang }) {
 
   return (
     <div
+      className="fade-in"
       style={{
         minHeight: "100dvh",
         background: "var(--md-sys-color-background)",
@@ -64,8 +65,8 @@ export function NightScreen({ lang }) {
         flexDirection: "column",
       }}
     >
-      <header style={{ padding: "40px 20px 32px", textAlign: "center" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, borderRadius: "50%", background: "var(--md-sys-color-primary-container)", marginBottom: 20 }}>
+      <header style={{ padding: "calc(var(--safe-top) + 40px) 20px 32px", textAlign: "center" }}>
+        <div className="floaty" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 64, height: 64, borderRadius: "50%", background: "var(--md-sys-color-primary-container)", marginBottom: 20 }}>
           <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-on-primary-container)", fontSize: 36 }}>dark_mode</span>
         </div>
         <p style={{ fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>
@@ -175,7 +176,7 @@ export function NightScreen({ lang }) {
             
             {me?.isHost && subPhase === "werwolf" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20, letterSpacing: "-0.01em" }}>Wer ist das Opfer?</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20, letterSpacing: "-0.01em" }}>{t(lang, "nightWhoVictim")}</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 32 }}>
                   {alive.filter(p => p.role !== "werwolf").map((p) => (
                     <button
@@ -206,7 +207,7 @@ export function NightScreen({ lang }) {
             
             {myRole === "seher" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20, letterSpacing: "-0.01em" }}>Welche Person prüfst du?</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20, letterSpacing: "-0.01em" }}>{t(lang, "nightWhoInspect")}</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 32 }}>
                   {alive.map((p) => (
                     <button
@@ -242,7 +243,7 @@ export function NightScreen({ lang }) {
                   return victim ? (
                     <div style={{ marginBottom: 24, padding: "14px 18px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12 }}>
                       <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface)", margin: 0 }}>
-                        Opfer der Werwölfe: <strong>{victim.name}</strong>
+                        {t(lang, "nightWerewolfVictim").replace("{name}", victim.name)}
                       </p>
                     </div>
                   ) : null;
@@ -321,16 +322,16 @@ export function NightScreen({ lang }) {
                       {hexePoison === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>}
                     </button>
                   ))}
-                  {state?.witchUsedPoison && <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>Gifttrank bereits verbraucht.</span>}
+                  {state?.witchUsedPoison && <span style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: 14 }}>{t(lang, "poisonUsedUp")}</span>}
                 </div>
               </>
             )}
 
             {myRole === "amor" && subPhase === "amor" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 16 }}>Wähle zwei Verliebte.</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 16 }}>{t(lang, "amorChooseTwo")}</p>
                 <div style={{ marginBottom: 20 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>Erste Person</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>{t(lang, "amorFirstPerson")}</p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {alive.filter((p) => p.playerId !== amorLover2).map((p) => (
                       <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setAmorLover1(amorLover1 === p.playerId ? null : p.playerId)}
@@ -341,7 +342,7 @@ export function NightScreen({ lang }) {
                   </div>
                 </div>
                 <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>Zweite Person</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 8 }}>{t(lang, "amorSecondPerson")}</p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {alive.filter((p) => p.playerId !== amorLover1).map((p) => (
                       <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setAmorLover2(amorLover2 === p.playerId ? null : p.playerId)}
@@ -356,7 +357,7 @@ export function NightScreen({ lang }) {
 
             {myRole === "baecker" && subPhase === "baecker" && (
               <>
-                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20 }}>Wer darf morgen nicht abstimmen?</p>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20 }}>{t(lang, "baeckerWhoSilence")}</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                   {alive.map((p) => (
                     <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setBaeckerTarget(baeckerTarget === p.playerId ? null : p.playerId)}
@@ -366,7 +367,7 @@ export function NightScreen({ lang }) {
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>Du kannst ohne Ziel fortfahren.</p>
+                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>{t(lang, "baeckerOptionalHint")}</p>
               </>
             )}
             
@@ -413,7 +414,7 @@ export function NightScreen({ lang }) {
             <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em" }}>{t(lang, "actionConfirm")}</span>
             {myRole === "seher" && seherResultPlayer && (
               <div style={{ marginTop: 8, paddingTop: 16, borderTop: "1px solid rgba(16,185,129,0.2)", width: "100%" }}>
-                  <p style={{ fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 8px" }}>Ergebnis für <strong>{seherResultPlayer.name}</strong>:</p>
+                  <p style={{ fontSize: 14, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 8px" }}>{t(lang, "seherResultFor").replace("{name}", seherResultPlayer.name)}</p>
                 {exactRole ? (
                   <p style={{ 
                     fontSize: 18, 
@@ -426,7 +427,7 @@ export function NightScreen({ lang }) {
                     gap: 8
                   }}>
                     <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)" }}>visibility</span>
-                    Rolle: {t(lang, exactRole) || exactRole}
+                    {t(lang, "seherRoleResult").replace("{role}", t(lang, exactRole) || exactRole)}
                   </p>
                 ) : (
                   <p style={{ 
@@ -473,24 +474,24 @@ export function NightScreen({ lang }) {
                 {t(lang, "playAudio")}
               </button>
               <Button variant="tonal" onClick={() => emit("host_skip_phase")} style={{ padding: "8px 16px" }}>
-                Phase überspringen
+                {t(lang, "skipPhase")}
               </Button>
             </div>
           </div>
           {subPhase === "werwolf" && actions.werwolf?.targetId && (
-            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Werwölfe: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "werwolf")}: {t(lang, "statusReady")}</p>
           )}
           {subPhase === "seher" && (state?.players ?? []).filter(p => p.role === "seher" && p.isAlive).some(p => actions.seher?.targetId) && (
-            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Seher: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "seher")}: {t(lang, "statusReady")}</p>
           )}
           {subPhase === "hexe" && (actions.hexe?.healId || actions.hexe?.poisonId || actions.hexe?.passed) && (
-            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Hexe: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "hexe")}: {t(lang, "statusReady")}</p>
           )}
           {subPhase === "amor" && (actions.amor?.lover1Id && actions.amor?.lover2Id) && (
-            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Amor: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "amor")}: {t(lang, "statusReady")}</p>
           )}
           {subPhase === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed) && (
-            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>Bäcker: bereit</p>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "baecker")}: {t(lang, "statusReady")}</p>
           )}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button

@@ -31,6 +31,9 @@ export function MayorScreen({ lang }) {
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = React.useState(false);
 
+  const myPlayer = players.find((p) => p.playerId === me?.playerId);
+  const myRole = myPlayer?.role;
+
   return (
     <div className="fade-in" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
       <header
@@ -55,6 +58,19 @@ export function MayorScreen({ lang }) {
       </header>
 
       <div style={{ flex: 1, padding: "24px 16px", paddingLeft: "max(16px, var(--safe-left))", paddingRight: "max(16px, var(--safe-right))", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        {myRole && myRole !== "moderator" && (
+          <Card style={{ padding: "16px 20px", marginBottom: 20, background: "var(--md-sys-color-secondary-container)", display: "flex", alignItems: "center", gap: 14 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 28, color: "var(--md-sys-color-primary)" }}>masks</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--md-sys-color-on-surface-variant)" }}>
+                {t(lang, "yourSecretRole")}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--md-sys-color-on-secondary-container)" }}>
+                {t(lang, myRole) || myRole}
+              </div>
+            </div>
+          </Card>
+        )}
         <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", marginBottom: 32 }}>
           <div
             style={{

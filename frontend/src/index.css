@@ -257,6 +257,7 @@ body::before {
     radial-gradient(70% 60% at 50% 100%, var(--ambient-1), transparent 75%);
   opacity: 0.9;
   transition: background 0.7s var(--motion-standard);
+  animation: ambientPulse 16s ease-in-out infinite;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -306,6 +307,10 @@ h1 {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+@keyframes ambientPulse {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 1; }
+}
 
 .fade-in { animation: fadeIn 0.4s var(--motion-standard) both; }
 .slide-up { animation: slideUp 0.45s var(--motion-standard) both; }
@@ -328,6 +333,54 @@ h1 {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+
+/* Animierter Verlaufstext (sanftes Schimmern in den Phasenfarben). */
+.gradient-text-animated {
+  background: linear-gradient(100deg, var(--g-blue), #6c4cf1, var(--g-red), var(--g-yellow), var(--g-green), var(--g-blue));
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shimmer 9s linear infinite;
+}
+
+/* Google-Signaturakzent: Blau · Rot · Gelb · Grün als feiner Streifen. */
+.g-accent-bar {
+  height: 5px;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--g-blue) 0 25%,
+    var(--g-red) 25% 50%,
+    var(--g-yellow) 50% 75%,
+    var(--g-green) 75% 100%
+  );
+}
+.g-accent-bar-animated {
+  background: linear-gradient(90deg, var(--g-blue), #6c4cf1, var(--g-red), var(--g-yellow), var(--g-green), var(--g-blue));
+  background-size: 220% 100%;
+  animation: shimmer 7s linear infinite;
+}
+
+/* Vier Google-Punkte als verspielter Marken-Akzent. */
+.g-dots {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+}
+.g-dots > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: block;
+  animation: floaty 2.8s ease-in-out infinite;
+}
+.g-dots > i:nth-child(1) { background: var(--g-blue); }
+.g-dots > i:nth-child(2) { background: var(--g-red); animation-delay: 0.2s; }
+.g-dots > i:nth-child(3) { background: var(--g-yellow); animation-delay: 0.4s; }
+.g-dots > i:nth-child(4) { background: var(--g-green); animation-delay: 0.6s; }
 
 .md-state-layer {
   position: relative;

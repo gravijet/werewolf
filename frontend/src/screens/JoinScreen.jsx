@@ -86,7 +86,7 @@ export function JoinScreen({ lang, setLang }) {
           <span className="material-symbols-outlined" style={{ fontSize: 48, color: "#fff" }}>pets</span>
         </div>
         <h1
-          className="gradient-text"
+          className="gradient-text-animated"
           style={{
             fontSize: 48,
             fontWeight: 800,
@@ -110,9 +110,13 @@ export function JoinScreen({ lang, setLang }) {
             {t(lang, "appSubtitle")}
           </p>
         )}
+        <div className="g-dots" style={{ marginTop: 16, justifyContent: "center" }} aria-hidden>
+          <i /><i /><i /><i />
+        </div>
       </div>
 
       <Card style={{ width: "100%", maxWidth: 460, padding: "40px 36px 34px" }}>
+        <div className="g-accent-bar g-accent-bar-animated" style={{ margin: "-40px -36px 28px", width: "auto", borderRadius: 0 }} aria-hidden />
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Input
             label={t(lang, "yourName")}

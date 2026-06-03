@@ -168,7 +168,7 @@ function AppContent() {
   const [theme, setTheme] = useState(() => getStoredTheme());
   const [adminOpen, setAdminOpen] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const { state, me, error, setError, reconnecting, leave } = useGame();
+  const { state, me, error, setError, reconnecting, leave, connected } = useGame();
 
   useEffect(() => {
     if (error) {
@@ -195,6 +195,48 @@ function AppContent() {
   const controls = (
     <FloatingControls lang={lang} setLang={setLang} theme={theme} toggleTheme={toggleTheme} />
   );
+
+  // Verbindungsabbruch-Banner: erscheint, sobald wir mitten in einer Sitzung
+  // (Identität vorhanden) die Verbindung verlieren. Socket.io verbindet automatisch neu.
+  const connBanner =
+    me && !connected ? (
+      <div
+        className="slide-up"
+        role="status"
+        aria-live="polite"
+        style={{
+          position: "fixed",
+          top: "max(12px, var(--safe-top))",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1600,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 18px",
+          borderRadius: 999,
+          background: "var(--md-sys-color-error-container)",
+          color: "var(--md-sys-color-on-error-container)",
+          boxShadow: "var(--shadow-2)",
+          fontSize: 14,
+          fontWeight: 600,
+          maxWidth: "92vw",
+        }}
+      >
+        <span
+          style={{
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+            border: "2px solid currentColor",
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            animation: "spin 0.7s linear infinite",
+          }}
+        />
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t(lang, "connectionLost")}</span>
+      </div>
+    ) : null;
 
   if (!me) {
     if (reconnecting) {
@@ -228,6 +270,7 @@ function AppContent() {
     return (
       <>
         {controls}
+        {connBanner}
         <GameEndScreen lang={lang} />
       </>
     );
@@ -237,6 +280,7 @@ function AppContent() {
     return (
       <>
         {controls}
+        {connBanner}
         <DeadScreen lang={lang} />
       </>
     );
@@ -270,6 +314,7 @@ function AppContent() {
   return (
     <>
       {controls}
+      {connBanner}
       {showHostAdmin && (
         <button
           type="button"

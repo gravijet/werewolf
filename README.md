@@ -5,7 +5,7 @@ Digitale Unterstützung für eine physische Werwolf-Spielrunde: ein gemeinsamer 
 - **Backend:** Node.js (Express) + Socket.io, ein aktiver Raum, Spielzustand im Speicher, Rate-Limiting & Tests
 - **Frontend:** React (Vite), farbenfrohes Material-You-Design mit Dark Mode & phasenabhängiger Farbwelt, i18n (DE/EN/SV), mehrsprachige Host-Sprachanweisungen
 
-**Highlights:** dynamische Nacht-Phasen (überspringt automatisch Rollen, die nicht im Spiel sind) · Rollen-Auflösung mit Konfetti am Spielende · „Neue Runde" für den Host · Einladen per Link teilen · Diskussions-Timer · Dark Mode.
+**Highlights:** dynamische Nacht-Phasen (überspringt automatisch Rollen, die nicht im Spiel sind) · Rollen-Auflösung mit Konfetti am Spielende · „Neue Runde" für den Host · Einladen per Link **oder QR-Code** · Diskussions-Timer (Dauer einstellbar) · Hexe darf Heil- und Gifttrank in derselben Nacht nutzen · **installierbare PWA** (Zum Startbildschirm hinzufügen) · Verbindungs-Banner bei Aussetzern · Dark Mode.
 
 ---
 

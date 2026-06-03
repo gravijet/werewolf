@@ -114,3 +114,77 @@ test("restartToLobby nur nach Spielende erlaubt", () => {
   const res = gs.restartToLobby("host");
   assert.equal(res.ok, false);
 });
+
+test("Hexe darf Heil- und Gifttrank in derselben Nacht einsetzen", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ hexe: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const hexe = all.find((p) => p.role === "hexe");
+  const villagers = all.filter((p) => p.role === "dorfbewohner");
+  const victim = villagers[0];
+  const poisonTarget = villagers[1];
+
+  // Werwölfe wählen ein Opfer (Host gibt es ein).
+  assert.equal(gs.getState(null).night.subPhase, "werwolf");
+  gs.submitNightAction("host", { targetId: victim.playerId });
+  let r = gs.advanceNightPhase("host");
+  assert.equal(r.subPhase, "hexe");
+
+  // Hexe heilt das Opfer UND vergiftet eine andere Person.
+  const res = gs.submitNightAction(hexe.playerId, { healId: victim.playerId, poisonId: poisonTarget.playerId });
+  assert.ok(res.ok);
+  gs.advanceNightPhase("host");
+
+  assert.equal(gs.findPlayer(victim.playerId).isAlive, true, "geheiltes Werwolf-Opfer lebt");
+  assert.equal(gs.findPlayer(poisonTarget.playerId).isAlive, false, "vergiftetes Ziel ist ausgeschieden");
+});
+
+test("Amor: erneute Wahl hebt das alte Liebespaar auf", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ amor: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const amor = all.find((p) => p.role === "amor");
+  const others = all.filter((p) => p.playerId !== amor.playerId);
+  assert.equal(gs.getState(null).night.subPhase, "amor");
+
+  // Erstes Liebespaar.
+  gs.submitNightAction(amor.playerId, { lover1Id: others[0].playerId, lover2Id: others[1].playerId });
+  assert.equal(gs.findPlayer(others[0].playerId).inLove, true);
+  assert.equal(gs.findPlayer(others[1].playerId).inLove, true);
+
+  // Amor ändert die Wahl: others[0] bleibt, others[2] kommt neu dazu.
+  gs.submitNightAction(amor.playerId, { lover1Id: others[0].playerId, lover2Id: others[2].playerId });
+  const inLove = all.map((p) => gs.findPlayer(p.playerId)).filter((p) => p.inLove);
+  assert.equal(inLove.length, 2, "es gibt genau zwei Verliebte");
+  assert.equal(Boolean(gs.findPlayer(others[1].playerId).inLove), false, "altes Paar-Mitglied ist nicht mehr verliebt");
+  assert.equal(gs.findPlayer(others[0].playerId).inLove, true);
+  assert.equal(gs.findPlayer(others[2].playerId).inLove, true);
+});
+
+test("Seher kann die Spielleitung (Moderator) nicht prüfen", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ seher: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const seher = all.find((p) => p.role === "seher");
+  const villager = all.find((p) => p.role === "dorfbewohner");
+
+  gs.advanceNightPhase("host"); // werwolf -> seher
+  assert.equal(gs.getState(null).night.subPhase, "seher");
+
+  // Host darf nicht geprüft werden (Host-Sicht zeigt die ungemaskten Aktionen).
+  gs.submitNightAction(seher.playerId, { targetId: "host" });
+  assert.equal(gs.getState("host").night.actions.seher.targetId, null, "Moderator ist kein gültiges Ziel");
+
+  // Eine echte Person darf geprüft werden.
+  gs.submitNightAction(seher.playerId, { targetId: villager.playerId });
+  assert.equal(gs.getState("host").night.actions.seher.targetId, villager.playerId);
+});

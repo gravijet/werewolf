@@ -34,5 +34,6 @@ export const DEFAULT_RULES = {
     jaeger: { count: 0, enabled: false },
     blinzelmaedchen: { count: 0, enabled: false },
     baecker: { count: 0, enabled: false },
+    beschuetzer: { count: 0, enabled: false },
   },
 };

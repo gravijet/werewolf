@@ -22,13 +22,15 @@ export function DayScreen({ lang }) {
   const myAccusation = me ? accusations[me.playerId] : undefined;
   const accusedIds = day?.accusedIds ?? [];
   const runoffCandidates = day?.runoffCandidates;
+  // Während der Abstimmung sind ausschließlich die Angeklagten (bzw. die
+  // Stichwahl-Kandidaten) wählbar – exakt wie im Backend. Ohne Anklage bleibt
+  // die Liste leer, statt fälschlich alle Lebenden anzubieten (Stimmen würden
+  // sonst stumm abgelehnt).
   const candidates = isAccusing
     ? alive.filter((p) => p.playerId !== me?.playerId && !p.isHost)
     : runoffCandidates?.length
       ? alive.filter((p) => runoffCandidates.includes(p.playerId) && !p.isHost)
-      : accusedIds.length > 0
-        ? alive.filter((p) => accusedIds.includes(p.playerId) && !p.isHost)
-        : alive.filter((p) => p.playerId !== me?.playerId && !p.isHost);
+      : alive.filter((p) => accusedIds.includes(p.playerId) && !p.isHost);
   const votes = day?.votes ?? {};
   const myVote = me ? votes[me.playerId] : null;
 
@@ -44,6 +46,8 @@ export function DayScreen({ lang }) {
   const myDayPlayer = (state?.players ?? []).find((p) => p.playerId === me?.playerId);
   const dayLovePartnerId = myDayPlayer?.lovePartnerId;
   const dayLovePartner = dayLovePartnerId ? (state?.players ?? []).find((p) => p.playerId === dayLovePartnerId) : null;
+  const dayBountyTargetId = myDayPlayer?.bountyTargetId;
+  const dayBountyTarget = dayBountyTargetId ? (state?.players ?? []).find((p) => p.playerId === dayBountyTargetId) : null;
 
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--md-sys-color-background)" }}>
@@ -113,6 +117,15 @@ export function DayScreen({ lang }) {
             <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-tertiary)", fontSize: 22, flexShrink: 0 }}>favorite</span>
             <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-tertiary-container)", lineHeight: 1.4 }}>
               {t(lang, "youAreInLoveWith").replace("{name}", dayLovePartner.name)}
+            </p>
+          </div>
+        )}
+
+        {dayBountyTarget && !iAmDead && (
+          <div style={{ padding: "14px 18px", marginBottom: 24, background: "var(--md-sys-color-tertiary-container)", borderRadius: "var(--radius-lg)", display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-tertiary)", fontSize: 22, flexShrink: 0 }}>crisis_alert</span>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-tertiary-container)", lineHeight: 1.4 }}>
+              {t(lang, "bountyTargetHint").replace("{name}", dayBountyTarget.name)}
             </p>
           </div>
         )}

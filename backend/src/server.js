@@ -4,7 +4,7 @@
  */
 
 import "dotenv/config";
-import { randomUUID } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -59,6 +59,20 @@ const app = express();
 const httpServer = createServer(app);
 
 app.disable("x-powered-by");
+
+/**
+ * Konstantzeit-Vergleich für Passwörter (verhindert Timing-Angriffe).
+ * Gibt bei ungleicher Länge sofort false zurück, hält aber die Vergleichszeit stabil.
+ */
+function passwordsMatch(a, b) {
+  const aBuf = Buffer.from(String(a ?? ""), "utf8");
+  const bBuf = Buffer.from(String(b ?? ""), "utf8");
+  if (aBuf.length !== bBuf.length) {
+    timingSafeEqual(aBuf, aBuf);
+    return false;
+  }
+  return timingSafeEqual(aBuf, bBuf);
+}
 
 // CORS-Origins kommagetrennt aus Umgebung; sonst Origin der Anfrage spiegeln (Dev).
 const corsOrigins = (process.env.CORS_ORIGIN || "")
@@ -228,8 +242,8 @@ io.on("connection", (socket) => {
       }
 
       const trimmedName = playerName.trim().slice(0, 80) || "Unbekannt";
-      const isAdmin = password === ADMIN_PASSWORD;
-      if (password !== PLAYER_PASSWORD && !isAdmin) {
+      const isAdmin = passwordsMatch(password, ADMIN_PASSWORD);
+      if (!passwordsMatch(password, PLAYER_PASSWORD) && !isAdmin) {
         sendError("wrong_password", "Das Passwort ist nicht korrekt.");
         return;
       }

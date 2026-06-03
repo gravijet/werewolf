@@ -10,7 +10,8 @@ export function NightScreen({ lang }) {
   const night = state?.night;
   const subPhase = night?.subPhase ?? "werwolf";
   const actions = night?.actions ?? {};
-  const alive = (state?.players ?? []).filter((p) => p.isAlive && p.playerId !== me?.playerId);
+  // Die Spielleitung (Moderator) ist kein Mitspieler und taucht in keiner Zielauswahl auf.
+  const alive = (state?.players ?? []).filter((p) => p.isAlive && !p.isHost && p.playerId !== me?.playerId);
   const myRole = me ? (state?.players?.find((p) => p.playerId === me.playerId)?.role) : null;
 
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -248,6 +249,11 @@ export function NightScreen({ lang }) {
                     </div>
                   ) : null;
                 })()}
+                {!state?.witchUsedHeal && !state?.witchUsedPoison && (
+                  <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 18px", lineHeight: 1.5 }}>
+                    {t(lang, "hexeBothHint")}
+                  </p>
+                )}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 22, color: "var(--success)" }}>healing</span>
                   <p style={{ fontSize: 16, fontWeight: 600, color: "var(--md-sys-color-on-surface)", margin: 0 }}>
@@ -264,7 +270,7 @@ export function NightScreen({ lang }) {
                         key={wervictim.playerId}
                         type="button"
                         className="md-state-layer"
-                        onClick={() => { setHexeHeal(hexeHeal === wervictim.playerId ? null : wervictim.playerId); setHexePoison(null); }}
+                        onClick={() => setHexeHeal(hexeHeal === wervictim.playerId ? null : wervictim.playerId)}
                         style={{
                           padding: "14px 20px",
                           borderRadius: "16px",
@@ -301,7 +307,7 @@ export function NightScreen({ lang }) {
                       key={p.playerId}
                       type="button"
                       className="md-state-layer"
-                      onClick={() => { setHexePoison(hexePoison === p.playerId ? null : p.playerId); setHexeHeal(null); }}
+                      onClick={() => setHexePoison(hexePoison === p.playerId ? null : p.playerId)}
                       style={{
                         padding: "14px 20px",
                         borderRadius: "16px",

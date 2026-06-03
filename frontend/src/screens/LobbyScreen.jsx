@@ -3,11 +3,15 @@ import { useGame } from "../context/GameContext";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
+import { QrModal } from "../components/QrModal";
+import { usePwaInstall } from "../lib/usePwaInstall";
 import { t } from "../i18n/translations";
 
 export function LobbyScreen({ lang, onOpenAdmin }) {
   const { state, me, emit, leave } = useGame();
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const { canInstall, promptInstall } = usePwaInstall();
   const players = state?.players ?? [];
   const rules = state?.rules ?? {};
   const connectedCount = players.filter((p) => p.isConnected && !p.isHost).length;
@@ -138,31 +142,54 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
                 {t(lang, "shareInvite")}
               </div>
             </div>
-            <button
-              type="button"
-              className="md-state-layer"
-              onClick={handleInvite}
-              aria-label={t(lang, copied ? "linkCopied" : "copyLink")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "10px 16px",
-                borderRadius: 999,
-                border: "none",
-                background: "rgba(255,255,255,0.22)",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                {copied ? "check" : "share"}
-              </span>
-              {copied ? t(lang, "linkCopied") : t(lang, "invite")}
-            </button>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button
+                type="button"
+                className="md-state-layer"
+                onClick={() => setShowQr(true)}
+                aria-label={t(lang, "scanToJoin")}
+                title={t(lang, "scanToJoin")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 999,
+                  border: "none",
+                  background: "rgba(255,255,255,0.22)",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 22 }}>qr_code_2</span>
+              </button>
+              <button
+                type="button"
+                className="md-state-layer"
+                onClick={handleInvite}
+                aria-label={t(lang, copied ? "linkCopied" : "copyLink")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 16px",
+                  borderRadius: 999,
+                  border: "none",
+                  background: "rgba(255,255,255,0.22)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  {copied ? "check" : "share"}
+                </span>
+                {copied ? t(lang, "linkCopied") : t(lang, "invite")}
+              </button>
+            </div>
           </div>
         </Card>
 
@@ -275,10 +302,18 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
             {t(lang, "waitForHost")}
           </p>
         )}
+        {canInstall && (
+          <Button variant="text" fullWidth onClick={promptInstall} style={{ minHeight: 44, fontSize: 15 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>install_mobile</span>
+            {t(lang, "installApp")}
+          </Button>
+        )}
         <Button variant="text" fullWidth onClick={leave} style={{ minHeight: 44, color: "var(--md-sys-color-error)", fontSize: 15 }}>
           {t(lang, "leaveRound")}
         </Button>
       </footer>
+
+      <QrModal open={showQr} url={inviteUrl} lang={lang} onClose={() => setShowQr(false)} />
     </div>
   );
 }

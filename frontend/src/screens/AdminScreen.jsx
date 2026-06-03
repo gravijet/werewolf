@@ -19,6 +19,42 @@ export function AdminScreen({ lang, onClose }) {
     emit("admin_set_rules", { rules: { [key]: value } });
   };
 
+  const ToggleSwitch = ({ checked, onChange, label }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 56,
+        height: 32,
+        borderRadius: 16,
+        border: "none",
+        flexShrink: 0,
+        background: checked ? "var(--md-sys-color-primary)" : "var(--md-sys-color-surface-variant)",
+        cursor: "pointer",
+        position: "relative",
+        transition: "background 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        outlineOffset: 2,
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 4,
+          left: checked ? 28 : 4,
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          background: checked ? "var(--md-sys-color-on-primary)" : "var(--md-sys-color-outline)",
+          transition: "left 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        }}
+      />
+    </button>
+  );
+
   const TabButton = ({ id, label, icon }) => (
     <button
       type="button"
@@ -124,6 +160,7 @@ export function AdminScreen({ lang, onClose }) {
                   {t(lang, "gameRules")}
                 </h3>
               </div>
+
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <span style={{ fontSize: 16, fontWeight: 600, color: "var(--md-sys-color-on-surface)", display: "block", marginBottom: 6, letterSpacing: "-0.01em" }}>
@@ -133,37 +170,58 @@ export function AdminScreen({ lang, onClose }) {
                     {t(lang, "mayorEnabledHelp")}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={rules.mayorElectionEnabled !== false}
-                  onClick={() => handleRuleChange("mayorElectionEnabled", !(rules.mayorElectionEnabled !== false))}
+                <ToggleSwitch
+                  checked={rules.mayorElectionEnabled !== false}
+                  onChange={(v) => handleRuleChange("mayorElectionEnabled", v)}
+                  label={t(lang, "mayorEnabled")}
+                />
+              </div>
+
+              <hr style={{ border: "none", height: 1, background: "var(--md-sys-color-outline-variant)", margin: "20px 0" }} />
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: "var(--md-sys-color-on-surface)", display: "block", marginBottom: 6, letterSpacing: "-0.01em" }}>
+                    {t(lang, "revealRolesToDead")}
+                  </span>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)", margin: 0, lineHeight: 1.5 }}>
+                    {t(lang, "revealRolesToDeadHelp")}
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={rules.revealRolesToDead !== false}
+                  onChange={(v) => handleRuleChange("revealRolesToDead", v)}
+                  label={t(lang, "revealRolesToDead")}
+                />
+              </div>
+
+              <hr style={{ border: "none", height: 1, background: "var(--md-sys-color-outline-variant)", margin: "20px 0" }} />
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <label htmlFor="rule-votetime" style={{ fontSize: 16, fontWeight: 600, color: "var(--md-sys-color-on-surface)", display: "block", marginBottom: 6, letterSpacing: "-0.01em" }}>
+                    {t(lang, "voteDurationLabel")}
+                  </label>
+                </div>
+                <select
+                  id="rule-votetime"
+                  value={Number(rules.voteDurationSeconds) || 180}
+                  onChange={(e) => handleRuleChange("voteDurationSeconds", parseInt(e.target.value, 10))}
                   style={{
-                    width: 56,
-                    height: 32,
-                    borderRadius: 16,
-                    border: "none",
-                    background: rules.mayorElectionEnabled !== false ? "var(--md-sys-color-primary)" : "var(--md-sys-color-surface-variant)",
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: "1px solid var(--md-sys-color-outline-variant)",
+                    fontSize: 16,
+                    fontWeight: 500,
+                    background: "var(--md-sys-color-surface-container-low)",
+                    color: "var(--md-sys-color-on-surface)",
                     cursor: "pointer",
-                    position: "relative",
-                    transition: "background 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                    outlineOffset: 2,
                   }}
                 >
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 4,
-                      left: rules.mayorElectionEnabled !== false ? 28 : 4,
-                      width: 24,
-                      height: 24,
-                      borderRadius: "50%",
-                      background: rules.mayorElectionEnabled !== false ? "var(--md-sys-color-on-primary)" : "var(--md-sys-color-outline)",
-                      transition: "left 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                    }}
-                  />
-                </button>
+                  {[60, 90, 120, 180, 240, 300].map((s) => (
+                    <option key={s} value={s}>{s} {t(lang, "seconds")}</option>
+                  ))}
+                </select>
               </div>
             </Card>
 

@@ -673,26 +673,36 @@ export function submitNightAction(playerId, payload) {
       const p1 = findPlayer(lover1Id);
       const p2 = findPlayer(lover2Id);
       if (p1?.isAlive && !p1?.isHost && p2?.isAlive && !p2?.isHost) {
+        // Vorherige Auswahl zurücksetzen, falls Amor das Paar noch einmal ändert –
+        // sonst blieben alte Verliebte fälschlich „verliebt".
+        state.players.forEach((pl) => {
+          pl.inLove = false;
+          pl.lovePartnerId = null;
+        });
         state.night.actions.amor = state.night.actions.amor || {};
         state.night.actions.amor.lover1Id = lover1Id;
         state.night.actions.amor.lover2Id = lover2Id;
         p1.inLove = true;
         p2.inLove = true;
+        p1.lovePartnerId = p2.playerId;
+        p2.lovePartnerId = p1.playerId;
       }
     }
     return { ok: true };
   }
   if (p.isHost && sub === "werwolf") {
     const targetId = payload?.targetId ?? payload?.targetPlayerId;
-    if (targetId && findPlayer(targetId)?.isAlive && targetId !== p.playerId)
+    const target = findPlayer(targetId);
+    if (targetId && target?.isAlive && !target.isHost && targetId !== p.playerId)
       actions.werwolf.targetId = targetId;
     return { ok: true };
   }
   if (p.role === "seher" && sub === "seher") {
     const targetId = payload?.targetId ?? payload?.targetPlayerId;
-    if (targetId && findPlayer(targetId)?.isAlive) {
+    const targetPlayer = findPlayer(targetId);
+    // Die Spielleitung (Moderator) ist kein Mitspieler und darf nicht geprüft werden.
+    if (targetId && targetPlayer?.isAlive && !targetPlayer.isHost && targetPlayer.role !== "moderator") {
       actions.seher.targetId = targetId;
-      const targetPlayer = findPlayer(targetId);
       if (state.rules.seherMode === "exact_role") {
         actions.seher.exactRole = targetPlayer?.role;
       } else {
@@ -720,26 +730,27 @@ export function submitNightAction(playerId, payload) {
   if (p.role === "hexe" && sub === "hexe") {
     const healId = payload?.healId ?? payload?.heal;
     const poisonId = payload?.poisonId ?? payload?.poison;
-    if (healId && poisonId) return { ok: false, error: "hexe_one_only" };
+    // Heiltrank: nur auf das aktuelle Werwolf-Opfer, einmal pro Partie.
     if (healId) {
       if (state.witchUsedHeal) return { ok: false, error: "hexe_heal_used" };
       const werwolfTarget = state.night.actions.werwolf?.targetId;
       if (!werwolfTarget || healId !== werwolfTarget) return { ok: false, error: "hexe_can_only_heal_victim" };
-      if (findPlayer(healId)?.isAlive) {
-        actions.hexe.healId = healId;
-        actions.hexe.poisonId = null;
-      }
-    } else if (poisonId) {
-      if (state.witchUsedPoison) return { ok: false, error: "hexe_poison_used" };
-      if (findPlayer(poisonId)?.isAlive) {
-        actions.hexe.poisonId = poisonId;
-        actions.hexe.healId = null;
-      }
+      if (findPlayer(healId)?.isAlive) actions.hexe.healId = healId;
     } else {
       actions.hexe.healId = null;
-      actions.hexe.poisonId = null;
-      actions.hexe.passed = true;
     }
+    // Gifttrank: auf eine beliebige lebende Person (nicht die Spielleitung), einmal pro Partie.
+    if (poisonId) {
+      if (state.witchUsedPoison) return { ok: false, error: "hexe_poison_used" };
+      const poisonTarget = findPlayer(poisonId);
+      if (poisonTarget?.isAlive && !poisonTarget.isHost && poisonTarget.role !== "moderator") {
+        actions.hexe.poisonId = poisonId;
+      }
+    } else {
+      actions.hexe.poisonId = null;
+    }
+    // „Passen" = bewusst keinen Trank einsetzen.
+    actions.hexe.passed = !healId && !poisonId;
     return { ok: true };
   }
   return { ok: false, error: "no_action" };
@@ -1088,7 +1099,7 @@ export function submitJaegerKill(hostPlayerId, targetId) {
   if (!host || (!host.isHost && !host.isAdmin)) return { ok: false, error: "not_host" };
   if (state.phase !== "jaeger_shot" || !state.jaegerSourceId) return { ok: false, error: "invalid_phase" };
   const target = findPlayer(targetId);
-  if (!target || !target.isAlive) return { ok: false, error: "invalid_target" };
+  if (!target || !target.isAlive || target.isHost || target.role === "moderator") return { ok: false, error: "invalid_target" };
   target.isAlive = false;
   addGameLog(state.round, "day", "jaeger_shot", target.name);
   const nightCase = !state.day;
@@ -1169,8 +1180,12 @@ function checkWinCondition() {
   const werewolves = alive.filter((p) => p.role === "werwolf");
   const nonWerewolves = alive.filter((p) => p.role !== "werwolf");
 
-  // Liebespaar-Sieg: nur wenn exakt diese 2 überleben und beide in Love sind.
-  if (alive.length === 2 && alive[0].inLove && alive[1].inLove) return "lovers";
+  // Liebespaar-Sieg: nur ein „gemischtes" Paar (ein Werwolf + ein Nicht-Werwolf),
+  // das als letzte zwei übrig bleibt, gewinnt gemeinsam. Sind beide Werwölfe bzw.
+  // beide Dorf, greift die normale Logik darunter (Werwolf- bzw. Dorfsieg).
+  if (alive.length === 2 && alive[0].inLove && alive[1].inLove && werewolves.length === 1) {
+    return "lovers";
+  }
 
   // Werwölfe gewinnen, wenn sie die einzigen letzten Überlebenden sind.
   if (werewolves.length > 0 && werewolves.length >= nonWerewolves.length) return "werwolf";

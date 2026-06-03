@@ -16,7 +16,7 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
   const rules = state?.rules ?? {};
   const connectedCount = players.filter((p) => p.isConnected && !p.isHost).length;
   const minPlayers = Number(rules.minPlayers) || 3;
-  const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker"];
+  const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker", "beschuetzer"];
   const totalRoles = roleIds.reduce((sum, roleId) => {
     const r = rules.roles?.[roleId];
     if (!r?.enabled) return sum;

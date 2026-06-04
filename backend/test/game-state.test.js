@@ -188,3 +188,122 @@ test("Seher kann die Spielleitung (Moderator) nicht prüfen", () => {
   gs.submitNightAction(seher.playerId, { targetId: villager.playerId });
   assert.equal(gs.getState("host").night.actions.seher.targetId, villager.playerId);
 });
+
+test("Beschützer schirmt das Werwolf-Opfer ab", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ beschuetzer: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const beschuetzer = all.find((p) => p.role === "beschuetzer");
+  const opfer = all.find((p) => p.role === "dorfbewohner");
+
+  // Erste Subphase ist der Beschützer (vor den Werwölfen).
+  assert.equal(gs.getState(null).night.subPhase, "beschuetzer");
+  gs.submitNightAction(beschuetzer.playerId, { targetId: opfer.playerId });
+  let r = gs.advanceNightPhase("host");
+  assert.equal(r.subPhase, "werwolf");
+
+  // Werwölfe greifen genau die geschützte Person an.
+  gs.submitNightAction("host", { targetId: opfer.playerId });
+  gs.advanceNightPhase("host");
+
+  assert.equal(gs.findPlayer(opfer.playerId).isAlive, true, "geschütztes Opfer überlebt");
+  assert.equal(gs.getState(null).night.victimId, null, "kein Nachtopfer");
+});
+
+test("Beschützer darf dieselbe Person nicht zwei Nächte hintereinander schützen", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ beschuetzer: { count: 1, enabled: true }, dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3", "p4"].map((id) => gs.findPlayer(id));
+  const beschuetzer = all.find((p) => p.role === "beschuetzer");
+  const villagers = all.filter((p) => p.role === "dorfbewohner");
+  const protectFirst = villagers[0];
+  const wolfVictim = villagers[1];
+
+  // Nacht 1: protectFirst schützen, Werwölfe reißen jemand anderen.
+  gs.submitNightAction(beschuetzer.playerId, { targetId: protectFirst.playerId });
+  gs.advanceNightPhase("host"); // -> werwolf
+  gs.submitNightAction("host", { targetId: wolfVictim.playerId });
+  gs.advanceNightPhase("host"); // -> tag
+  assert.equal(gs.getState(null).phase, "day");
+
+  // Tag 1 überspringen (keine Hinrichtung) -> Ergebnis -> Nacht 2.
+  gs.hostSkipPhase("host");
+  gs.advanceFromResult("host");
+  assert.equal(gs.getState(null).night.subPhase, "beschuetzer");
+
+  // Nacht 2: dieselbe Person darf nicht erneut geschützt werden.
+  gs.submitNightAction(beschuetzer.playerId, { targetId: protectFirst.playerId });
+  assert.equal(gs.getState(beschuetzer.playerId).night.actions.beschuetzer.targetId, null, "Wiederholung wird abgelehnt");
+
+  // Eine andere lebende Person ist erlaubt.
+  gs.submitNightAction(beschuetzer.playerId, { targetId: beschuetzer.playerId });
+  assert.equal(gs.getState(beschuetzer.playerId).night.actions.beschuetzer.targetId, beschuetzer.playerId);
+});
+
+test("Kopfgeldjäger gewinnt, wenn das Dorf seine Zielperson hinauswählt", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ kopfgeldjaeger: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const hunter = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "kopfgeldjaeger");
+  const targetId = gs.getState(hunter.playerId).players.find((p) => p.playerId === hunter.playerId).bountyTargetId;
+  assert.ok(targetId, "Kopfgeldjäger hat eine ausgeloste Zielperson");
+
+  // Nacht ohne Nachtopfer durchlaufen (Werwölfe wählen niemanden).
+  gs.advanceNightPhase("host");
+  assert.equal(gs.getState(null).phase, "day");
+
+  // Anklage + Abstimmung gegen die Zielperson.
+  const voters = ids.map((id) => gs.findPlayer(id)).filter((p) => p.playerId !== targetId && p.isAlive);
+  voters.forEach((v) => gs.submitDayAccusation(v.playerId, targetId));
+  gs.resolveDayPhase("host"); // accusing -> voting
+  voters.forEach((v) => gs.submitDayVote(v.playerId, targetId));
+  const res = gs.resolveDayPhase("host");
+
+  assert.equal(res.winner, "kopfgeldjaeger");
+  assert.equal(gs.getState(null).phase, "game_end");
+  assert.equal(gs.getState(null).winner, "kopfgeldjaeger");
+});
+
+test("Werwölfe gewinnen, wenn sie nachts die Gleichzahl erreichen", () => {
+  setupLobby(3, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ werwolf: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2"].map((id) => gs.findPlayer(id));
+  const villager = all.find((p) => p.role === "dorfbewohner");
+
+  gs.submitNightAction("host", { targetId: villager.playerId });
+  const r = gs.advanceNightPhase("host");
+  assert.equal(r.winner, "werwolf");
+  assert.equal(gs.getState(null).phase, "game_end");
+});
+
+test("Dorf gewinnt, wenn der letzte Werwolf hinausgewählt wird", () => {
+  setupLobby(3, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ werwolf: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2"];
+  const wolf = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "werwolf");
+
+  gs.advanceNightPhase("host"); // kein Nachtopfer -> Tag
+  const voters = ids.map((id) => gs.findPlayer(id)).filter((p) => p.playerId !== wolf.playerId);
+  voters.forEach((v) => gs.submitDayAccusation(v.playerId, wolf.playerId));
+  gs.resolveDayPhase("host");
+  voters.forEach((v) => gs.submitDayVote(v.playerId, wolf.playerId));
+  const res = gs.resolveDayPhase("host");
+
+  assert.equal(res.winner, "village");
+  assert.equal(gs.getState(null).winner, "village");
+});

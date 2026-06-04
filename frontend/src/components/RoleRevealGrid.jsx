@@ -13,6 +13,7 @@ const ROLE_ICON = {
   jaeger: "sports_martial_arts",
   blinzelmaedchen: "child_care",
   baecker: "bakery_dining",
+  beschuetzer: "shield",
   moderator: "admin_panel_settings",
 };
 
@@ -25,6 +26,7 @@ const TEAM = {
   jaeger: "village",
   blinzelmaedchen: "village",
   baecker: "village",
+  beschuetzer: "village",
   kopfgeldjaeger: "solo",
   moderator: "moderator",
 };

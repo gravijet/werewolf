@@ -33,6 +33,7 @@ lobby → mayor_election → night → day → result → (night → day → res
 `getNightSubphases()` baut die Reihenfolge anhand der **lebenden** Rollen:
 
 - `amor` – nur in der ersten Nacht, wenn ein lebender Amor existiert
+- `beschuetzer` – jede Nacht, wenn ein Beschützer lebt (legt den Schutz vor den Werwölfen)
 - `werwolf` – immer (Anker; Host gibt das Opfer ein)
 - `seher` – nur, wenn ein Seher lebt
 - `hexe` – nur, wenn die Hexe lebt **und** noch einen Trank hat
@@ -49,10 +50,11 @@ Dadurch klickt der Host nicht mehr durch leere Phasen.
 | `hexe`            | Dorf    | Ein Heil- und ein Gifttrank, je einmal pro Partie. |
 | `dorfbewohner`    | Dorf    | Keine Nachtaktion. |
 | `amor`            | Dorf    | Bestimmt in Nacht 1 das Liebespaar. |
-| `kopfgeldjaeger`  | Solo    | Gewinnt, wenn sein Ziel am Tag gelyncht wird. |
+| `kopfgeldjaeger`  | Solo    | Bekommt zu Spielbeginn eine ausgeloste Zielperson; gewinnt, wenn genau sie am Tag gelyncht wird. |
 | `jaeger`          | Dorf    | Schießt beim Ausscheiden auf eine Person. |
 | `blinzelmaedchen` | Dorf    | Darf nachts die Werwölfe „erspähen". |
 | `baecker`         | Dorf    | Schaltet eine Person für den nächsten Tag stumm. |
+| `beschuetzer`     | Dorf    | Schützt jede Nacht eine Person vor den Werwölfen (nicht zweimal dieselbe in Folge). |
 | `moderator`       | –       | Der Host; spielt nicht aktiv mit. |
 
 Die Verteilung erfolgt in `roles-engine.js`. `count` kann `"1/3"` (Werwölfe) oder eine feste Zahl
@@ -64,7 +66,8 @@ bleiben erhalten. Der Rest wird mit Dorfbewohnern aufgefüllt.
 - **Liebespaar** (`lovers`): genau die beiden Verliebten überleben.
 - **Werwölfe** (`werwolf`): Werwölfe ≥ Nicht-Werwölfe.
 - **Dorf** (`village`): kein Werwolf lebt mehr.
-- **Kopfgeldjäger** (`kopfgeldjaeger`): sein Ziel wird am Tag gelyncht.
+- **Kopfgeldjäger** (`kopfgeldjaeger`): seine zu Spielbeginn ausgeloste Zielperson wird am Tag
+  gelyncht (greift in der regulären Abstimmung und beim Zufalls-Stichentscheid).
 
 ## Sichtbarkeit / Masking
 

@@ -20,19 +20,25 @@ export function NightScreen({ lang }) {
   const [amorLover1, setAmorLover1] = useState(null);
   const [amorLover2, setAmorLover2] = useState(null);
   const [baeckerTarget, setBaeckerTarget] = useState(null);
+  const [beschuetzerTarget, setBeschuetzerTarget] = useState(null);
 
   const { speakCurrent } = useHostAudio(state?.phase, night?.subPhase, me?.isHost, lang);
 
   const myPlayer = (state?.players ?? []).find((p) => p.playerId === me?.playerId);
   const lovePartnerId = myPlayer?.lovePartnerId;
   const lovePartner = lovePartnerId ? (state?.players ?? []).find((p) => p.playerId === lovePartnerId) : null;
+  const lastProtectedId = state?.lastProtectedId ?? null;
+  // Kopfgeldjäger: die ausgeloste Zielperson wird ihm hier verraten.
+  const bountyTargetId = myPlayer?.bountyTargetId;
+  const bountyTarget = bountyTargetId ? (state?.players ?? []).find((p) => p.playerId === bountyTargetId) : null;
 
   const canAct =
     (me?.isHost && subPhase === "werwolf") ||
     (myRole === "seher" && subPhase === "seher") ||
     (myRole === "hexe" && subPhase === "hexe") ||
     (myRole === "amor" && subPhase === "amor") ||
-    (myRole === "baecker" && subPhase === "baecker");
+    (myRole === "baecker" && subPhase === "baecker") ||
+    (myRole === "beschuetzer" && subPhase === "beschuetzer");
 
   const submitAction = () => {
     if (me?.isHost && subPhase === "werwolf" && selectedTarget) emit("night_action", { targetId: selectedTarget });
@@ -40,6 +46,7 @@ export function NightScreen({ lang }) {
     if (myRole === "hexe") emit("night_action", { healId: hexeHeal || undefined, poisonId: hexePoison || undefined });
     if (myRole === "amor" && amorLover1 && amorLover2) emit("night_action", { lover1Id: amorLover1, lover2Id: amorLover2 });
     if (myRole === "baecker") emit("night_action", { targetId: baeckerTarget || null });
+    if (myRole === "beschuetzer" && beschuetzerTarget) emit("night_action", { targetId: beschuetzerTarget });
   };
 
   const hasActed =
@@ -47,7 +54,8 @@ export function NightScreen({ lang }) {
     (myRole === "seher" && actions.seher?.targetId) ||
     (myRole === "hexe" && (actions.hexe?.healId || actions.hexe?.poisonId || actions.hexe?.passed)) ||
     (myRole === "amor" && (actions.amor?.lover1Id && actions.amor?.lover2Id)) ||
-    (myRole === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed));
+    (myRole === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed)) ||
+    (myRole === "beschuetzer" && actions.beschuetzer?.targetId);
 
   const seherResultId = actions.seher?.targetId;
   const seherResultPlayer = seherResultId ? (state?.players ?? []).find(p => p.playerId === seherResultId) : null;
@@ -130,6 +138,22 @@ export function NightScreen({ lang }) {
               <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-tertiary-container)", lineHeight: 1.4 }}>
                 {t(lang, "youAreInLoveWith").replace("{name}", lovePartner.name)}
               </p>
+            </div>
+          </Card>
+        )}
+
+        {myRole === "kopfgeldjaeger" && bountyTarget && (
+          <Card style={{ marginBottom: 24, padding: "16px 18px", background: "var(--md-sys-color-tertiary-container)", border: "1px solid transparent" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-tertiary)", fontSize: 26 }}>crisis_alert</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--md-sys-color-on-tertiary-container)" }}>
+                  {t(lang, "bountyTargetLabel")}
+                </p>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-tertiary-container)", lineHeight: 1.45 }}>
+                  {t(lang, "bountyTargetHint").replace("{name}", bountyTarget.name)}
+                </p>
+              </div>
             </div>
           </Card>
         )}
@@ -376,7 +400,43 @@ export function NightScreen({ lang }) {
                 <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>{t(lang, "baeckerOptionalHint")}</p>
               </>
             )}
-            
+
+            {myRole === "beschuetzer" && subPhase === "beschuetzer" && (
+              <>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20 }}>{t(lang, "beschuetzerWhoProtect")}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                  {alive.map((p) => {
+                    const blocked = p.playerId === lastProtectedId;
+                    return (
+                      <button
+                        key={p.playerId}
+                        type="button"
+                        className={blocked ? "" : "md-state-layer"}
+                        disabled={blocked}
+                        onClick={() => !blocked && setBeschuetzerTarget(beschuetzerTarget === p.playerId ? null : p.playerId)}
+                        style={{
+                          padding: "14px 20px",
+                          borderRadius: 16,
+                          border: "1px solid transparent",
+                          background: beschuetzerTarget === p.playerId ? "var(--md-sys-color-secondary-container)" : "var(--md-sys-color-surface-container-low)",
+                          color: "var(--md-sys-color-on-surface)",
+                          fontWeight: 600,
+                          opacity: blocked ? 0.4 : 1,
+                          cursor: blocked ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {p.name}
+                        {beschuetzerTarget === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18, marginLeft: 6 }}>shield</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {lastProtectedId && (
+                  <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>{t(lang, "beschuetzerSameHint")}</p>
+                )}
+              </>
+            )}
+
             <Button
               onClick={submitAction}
               style={{
@@ -393,6 +453,7 @@ export function NightScreen({ lang }) {
               disabled={
                 (me?.isHost && subPhase === "werwolf") || myRole === "seher" ? !selectedTarget :
                 myRole === "amor" ? !(amorLover1 && amorLover2) :
+                myRole === "beschuetzer" ? !beschuetzerTarget :
                 false
               }
             >
@@ -498,6 +559,9 @@ export function NightScreen({ lang }) {
           )}
           {subPhase === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed) && (
             <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "baecker")}: {t(lang, "statusReady")}</p>
+          )}
+          {subPhase === "beschuetzer" && actions.beschuetzer?.targetId && (
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "beschuetzer")}: {t(lang, "statusReady")}</p>
           )}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button

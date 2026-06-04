@@ -142,12 +142,21 @@ export function getState(viewerPlayerId = null) {
         baecker: {
           targetId: viewer?.role === 'baecker' ? rawActions.baecker?.targetId : null
         },
+        beschuetzer: {
+          targetId: viewer?.role === 'beschuetzer' ? rawActions.beschuetzer?.targetId : null
+        },
         amor: {
           lover1Id: viewer?.role === 'amor' ? rawActions.amor?.lover1Id : null,
           lover2Id: viewer?.role === 'amor' ? rawActions.amor?.lover2Id : null
         }
       };
     }
+  }
+
+  // Wen der Beschützer zuletzt geschützt hat, darf nur er selbst (und die
+  // Spielleitung) wissen – sonst könnten alle seine Wahl mitlesen.
+  if (!viewer?.isHost && !viewer?.isAdmin && viewer?.role !== "beschuetzer") {
+    outState.lastProtectedId = null;
   }
 
   if (viewer?.isAdmin) {
@@ -184,6 +193,11 @@ function maskPlayer(player, viewerPlayerId) {
   };
   if (showRole && state.phase !== "lobby") {
     out.role = player.role;
+  }
+  // Kopfgeldjäger: die ausgeloste Zielperson sieht nur der Kopfgeldjäger selbst
+  // (am Spielende für die Auflösung auch alle anderen).
+  if ((isViewer || isGameEnd) && player.role === "kopfgeldjaeger" && player.bountyTargetId) {
+    out.bountyTargetId = player.bountyTargetId;
   }
   // Verliebte: dem Spieler selbst immer, am Spielende allen (für die Auflösung).
   if ((isViewer || isGameEnd) && player.inLove) {
@@ -422,15 +436,31 @@ export function startGame(hostPlayerId) {
   state.winner = null;
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
+  state.lastProtectedId = null;
 
   const n = connectedPlayers.length;
   const roles = distributeRoles(state.rules, n);
-  
+
   connectedPlayers.forEach((p, i) => {
     p.role = roles[i] ?? "dorfbewohner";
     p.isAlive = true;
     p.isMayor = false;
+    p.inLove = false;
+    p.lovePartnerId = null;
+    p.bountyTargetId = null;
   });
+
+  // Kopfgeldjäger: feste Zielperson zu Spielbeginn auslosen (eine andere
+  // mitspielende Person). Trifft das Dorf genau diese Person per Abstimmung,
+  // gewinnt der Kopfgeldjäger sofort – egal, was sonst passiert.
+  connectedPlayers
+    .filter((p) => p.role === "kopfgeldjaeger")
+    .forEach((hunter) => {
+      const candidates = connectedPlayers.filter((p) => p.playerId !== hunter.playerId);
+      if (candidates.length > 0) {
+        hunter.bountyTargetId = candidates[Math.floor(Math.random() * candidates.length)].playerId;
+      }
+    });
   state.players
     .filter((p) => !p.isHost && !p.isConnected)
     .forEach((p) => {
@@ -576,6 +606,8 @@ function getNightSubphases() {
   const subs = [];
   // Amor wählt nur in der ersten Nacht das Liebespaar.
   if (state.round === 1 && aliveWithRole("amor")) subs.push("amor");
+  // Der Beschützer legt seine schützende Hand auf, bevor die Werwölfe zuschlagen.
+  if (aliveWithRole("beschuetzer")) subs.push("beschuetzer");
   subs.push("werwolf");
   if (aliveWithRole("seher")) subs.push("seher");
   // Hexe nur, wenn sie lebt und noch mindestens einen Trank besitzt.
@@ -593,6 +625,7 @@ function createNightState() {
       seher: { targetId: null },
       hexe: { healId: null, poisonId: null },
       baecker: { targetId: null },
+      beschuetzer: { targetId: null },
       amor: { lover1Id: null, lover2Id: null },
     },
     victimId: null,
@@ -727,6 +760,22 @@ export function submitNightAction(playerId, payload) {
     }
     return { ok: true };
   }
+  if (p.role === "beschuetzer" && sub === "beschuetzer") {
+    actions.beschuetzer = actions.beschuetzer || {};
+    const targetId = payload?.targetId ?? payload?.targetPlayerId;
+    const target = findPlayer(targetId);
+    // Schützen: lebende Person (auch sich selbst), aber nicht die Spielleitung
+    // und nicht dieselbe Person wie in der vergangenen Nacht.
+    if (
+      target?.isAlive &&
+      !target.isHost &&
+      target.role !== "moderator" &&
+      targetId !== state.lastProtectedId
+    ) {
+      actions.beschuetzer.targetId = targetId;
+    }
+    return { ok: true };
+  }
   if (p.role === "hexe" && sub === "hexe") {
     const healId = payload?.healId ?? payload?.heal;
     const poisonId = payload?.poisonId ?? payload?.poison;
@@ -778,6 +827,15 @@ export function advanceNightPhase(hostPlayerId) {
   let jaegerKilledId = null;
   const healId = state.night.actions.hexe?.healId;
   const poisonId = state.night.actions.hexe?.poisonId;
+
+  // Beschützer: hat er das Werwolf-Opfer abgeschirmt, überlebt es die Nacht.
+  // Der Gifttrank der Hexe durchdringt den Schutz hingegen weiterhin.
+  const protectedId = actions.beschuetzer?.targetId || null;
+  if (protectedId) state.lastProtectedId = protectedId;
+  if (protectedId && victimId === protectedId) {
+    victimId = null;
+  }
+
   if (healId && victimId === healId) {
     victimId = null;
     state.witchUsedHeal = true;
@@ -1020,6 +1078,15 @@ export function resolveDayPhase(hostPlayerId) {
       eliminated.isAlive = false;
       state.day.eliminatedId = eliminatedId;
       addGameLog(state.round, "day", "lynch", eliminated.name);
+      if (checkBountyWin(eliminated.playerId)) {
+        state.day.status = "decided";
+        state.day.tieResolution = "random";
+        state.day.runoffCandidates = null;
+        state.phase = "game_end";
+        state.winner = "kopfgeldjaeger";
+        schedulePersist();
+        return { ok: true, decided: true, eliminatedId, winner: "kopfgeldjaeger" };
+      }
       const loverId = cascadeLover(eliminatedId, "day");
       if (eliminated.role === "jaeger" || (loverId && findPlayer(loverId)?.role === "jaeger")) {
         const jaegerSourceId = eliminated.role === "jaeger" ? eliminatedId : loverId;
@@ -1046,9 +1113,8 @@ export function resolveDayPhase(hostPlayerId) {
       state.day.eliminatedId = result.eliminatedId;
       addGameLog(state.round, "day", "lynch", eliminated.name);
 
-      const kopfgeldjaeger = state.players.find(p => p.role === "kopfgeldjaeger");
-      const kopfgeldTargetId = state.day?.accusations?.[kopfgeldjaeger?.playerId];
-      if (kopfgeldjaeger && kopfgeldjaeger.isAlive && kopfgeldTargetId === eliminated.playerId) {
+      if (checkBountyWin(eliminated.playerId)) {
+        state.day.status = "decided";
         state.phase = "game_end";
         state.winner = "kopfgeldjaeger";
         schedulePersist();
@@ -1174,6 +1240,18 @@ export function advanceFromResult(hostPlayerId) {
 /**
  * Siegbedingungen: Werwölfe (alle anderen tot oder Gleichzahl), Dorf (keine Werwölfe mehr), Kopfgeldjäger (Ziel tot), Liebespaar (nur sie beide leben).
  */
+/**
+ * Kopfgeldjäger-Sieg: Wird genau die ausgeloste Zielperson vom Dorf
+ * hinausgewählt, während der Kopfgeldjäger noch lebt, gewinnt er allein.
+ */
+function checkBountyWin(eliminatedId) {
+  if (!eliminatedId) return null;
+  const hunter = state.players.find(
+    (p) => p.role === "kopfgeldjaeger" && p.isAlive && p.bountyTargetId === eliminatedId
+  );
+  return hunter ? "kopfgeldjaeger" : null;
+}
+
 function checkWinCondition() {
   // Moderator (Host) is not a real player — exclude from win checks.
   const alive = state.players.filter((p) => p.isAlive && p.role !== "moderator");
@@ -1245,10 +1323,17 @@ export function removePlayer(playerId) {
     if (state.night.actions.hexe?.healId === playerId) state.night.actions.hexe.healId = null;
     if (state.night.actions.hexe?.poisonId === playerId) state.night.actions.hexe.poisonId = null;
     if (state.night.actions.baecker?.targetId === playerId) state.night.actions.baecker.targetId = null;
+    if (state.night.actions.beschuetzer?.targetId === playerId) state.night.actions.beschuetzer.targetId = null;
     if (state.night.actions.amor?.lover1Id === playerId) state.night.actions.amor.lover1Id = null;
     if (state.night.actions.amor?.lover2Id === playerId) state.night.actions.amor.lover2Id = null;
   }
 
+  // Kopfgeldjäger, dessen Zielperson den Raum verlässt, verliert sein Ziel.
+  state.players.forEach((p) => {
+    if (p.bountyTargetId === playerId) p.bountyTargetId = null;
+  });
+
+  if (state.lastProtectedId === playerId) state.lastProtectedId = null;
   if (state.jaegerSourceId === playerId) state.jaegerSourceId = null;
   ensureHost();
   schedulePersist();
@@ -1310,12 +1395,14 @@ function doResetToLobby() {
   state.jaegerSourceId = null;
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
+  state.lastProtectedId = null;
   state.players.forEach((p) => {
     p.role = null;
     p.isAlive = true;
     p.isMayor = false;
     p.inLove = false;
     p.lovePartnerId = null;
+    p.bountyTargetId = null;
   });
 }
 
@@ -1349,6 +1436,7 @@ export function resetState() {
   state.jaegerSourceId = null;
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
+  state.lastProtectedId = null;
 }
 
 /**

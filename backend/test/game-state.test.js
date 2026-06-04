@@ -307,3 +307,84 @@ test("Dorf gewinnt, wenn der letzte Werwolf hinausgewählt wird", () => {
   assert.equal(res.winner, "village");
   assert.equal(gs.getState(null).winner, "village");
 });
+
+test("Stichwahl beschränkt die Abstimmung auf die gleichstehenden Kandidaten", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfbewohner: { count: 4, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3", "p4"];
+  gs.advanceNightPhase("host"); // kein Nachtopfer -> Tag
+
+  // Drei Personen werden angeklagt: p0, p1, p2.
+  gs.submitDayAccusation("p3", "p0");
+  gs.submitDayAccusation("p4", "p1");
+  gs.submitDayAccusation("p0", "p2");
+  gs.resolveDayPhase("host"); // accusing -> voting (accusedIds = p0,p1,p2)
+
+  // Gleichstand zwischen p0 und p1 (je 2), p2 bekommt nur 1 Stimme.
+  gs.submitDayVote("p3", "p0");
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p4", "p1");
+  gs.submitDayVote("p0", "p1");
+  gs.submitDayVote("p1", "p2");
+  const res = gs.resolveDayPhase("host");
+  assert.ok(res.runoff, "Gleichstand löst eine Stichwahl aus");
+
+  const runoff = gs.getState(null).day.runoffCandidates;
+  assert.deepEqual([...runoff].sort(), ["p0", "p1"], "Stichwahl nur zwischen p0 und p1");
+
+  // p2 war angeklagt, steht aber nicht in der Stichwahl -> Stimme ist ungültig.
+  const badVote = gs.submitDayVote("p3", "p2");
+  assert.equal(badVote.ok, false, "Stimme für Nicht-Stichwahl-Kandidat wird abgelehnt");
+
+  // Stimme für einen Stichwahl-Kandidaten ist erlaubt.
+  const goodVote = gs.submitDayVote("p3", "p0");
+  assert.equal(goodVote.ok, true);
+});
+
+test("Niemand wird hingerichtet, wenn keine Stimme abgegeben wird", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  gs.advanceNightPhase("host"); // -> Tag
+
+  // Nur eine Person wird angeklagt, aber niemand stimmt ab.
+  gs.submitDayAccusation("p1", "p0");
+  gs.resolveDayPhase("host"); // accusing -> voting
+  const res = gs.resolveDayPhase("host"); // auswerten ohne Stimmen
+
+  assert.equal(res.eliminatedId, null, "ohne Stimmen wird niemand hingerichtet");
+  assert.equal(gs.findPlayer("p0").isAlive, true, "der Angeklagte überlebt");
+  assert.equal(gs.getState(null).phase, "result");
+});
+
+test("Bürgermeisterwahl nach Tages-Gleichstand schließt die Spielleitung aus", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: true,
+    roles: FULL_ROLES({ dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  assert.equal(gs.getState(null).phase, "mayor_election");
+  gs.hostSetMayor("host", null); // Wahl überspringen -> Nacht (kein Bürgermeister)
+  gs.advanceNightPhase("host"); // -> Tag
+
+  // Gleichstand p0 vs p1 erzwingen.
+  gs.submitDayAccusation("p2", "p0");
+  gs.submitDayAccusation("p3", "p1");
+  gs.resolveDayPhase("host"); // -> voting
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p3", "p1");
+  gs.resolveDayPhase("host"); // erster Gleichstand -> Stichwahl
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p3", "p1");
+  const res = gs.resolveDayPhase("host"); // Stichwahl-Gleichstand, kein Bürgermeister
+
+  assert.ok(res.needMayorElection, "Stichwahl-Gleichstand ohne Bürgermeister löst eine Wahl aus");
+  assert.equal(gs.getState(null).phase, "mayor_election");
+  const candidateIds = gs.getState(null).mayorElection.candidateIds;
+  assert.equal(candidateIds.includes("host"), false, "die Spielleitung kandidiert nicht");
+});

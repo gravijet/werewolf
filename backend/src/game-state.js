@@ -330,6 +330,12 @@ export function setPlayerName(playerId, newName) {
   if (!p) return { ok: false, error: "player_not_found" };
   if (!p.canChangeName) return { ok: false, error: "name_locked" };
   const name = String(newName).trim().slice(0, 80) || p.name;
+  // Keine Namens-Kollisionen: niemand darf sich auf den Namen einer anderen
+  // Person umbenennen (Schutz vor Verwechslung/Impersonation).
+  const clash = state.players.some(
+    (other) => other.playerId !== playerId && other.name.toLowerCase() === name.toLowerCase()
+  );
+  if (clash) return { ok: false, error: "name_taken" };
   p.name = name;
   schedulePersist();
   return { ok: true, name };
@@ -831,7 +837,10 @@ export function advanceNightPhase(hostPlayerId) {
   // Beschützer: hat er das Werwolf-Opfer abgeschirmt, überlebt es die Nacht.
   // Der Gifttrank der Hexe durchdringt den Schutz hingegen weiterhin.
   const protectedId = actions.beschuetzer?.targetId || null;
-  if (protectedId) state.lastProtectedId = protectedId;
+  // Nur eine tatsächlich geschützte Person sperrt die nächste Nacht. Schützt der
+  // Beschützer niemanden, wird die Sperre aufgehoben (sonst bliebe ein altes Ziel
+  // dauerhaft blockiert, auch viele Nächte später).
+  state.lastProtectedId = protectedId;
   if (protectedId && victimId === protectedId) {
     victimId = null;
   }
@@ -966,8 +975,10 @@ export function submitDayVote(playerId, targetPlayerId) {
 
 function getDayVoteCandidates() {
   if (!state.day) return [];
-  if (state.day.status === "voting" && Array.isArray(state.day.accusedIds)) return state.day.accusedIds;
+  // Stichwahl hat Vorrang: läuft eine Runoff-Runde, darf nur noch über die
+  // gleichstehenden Kandidaten abgestimmt werden – nicht mehr über alle Angeklagten.
   if (state.day.runoffCandidates && state.day.runoffCandidates.length > 0) return state.day.runoffCandidates;
+  if (state.day.status === "voting" && Array.isArray(state.day.accusedIds)) return state.day.accusedIds;
   return state.players.filter((x) => x.isAlive && !x.isHost).map((x) => x.playerId);
 }
 
@@ -987,6 +998,10 @@ function countDayVotes() {
     if (targetId && candidates.includes(targetId)) count[targetId] = (count[targetId] || 0) + 1;
   }
   const maxVotes = Math.max(...Object.values(count), 0);
+  // Hat niemand abgestimmt, wird auch niemand hingerichtet. Ohne diese Sperre
+  // würde bei nur einer angeklagten Person diese selbst mit null Stimmen
+  // „gewinnen" und fälschlich ausscheiden.
+  if (maxVotes === 0) return { eliminatedId: null, tie: false };
   const winners = Object.entries(count)
     .filter(([, v]) => v === maxVotes)
     .map(([id]) => id);
@@ -1058,7 +1073,9 @@ export function resolveDayPhase(hostPlayerId) {
   if (result.needMayorElection && state.rules.mayorElectionEnabled) {
     state.phase = "mayor_election";
     state.mayorElection = {
-      candidateIds: state.players.filter((p) => p.isAlive).map((p) => p.playerId),
+      // Die Spielleitung (Host/Moderator) ist kein Mitspieler und darf weder
+      // kandidieren noch zum Bürgermeister gewählt werden.
+      candidateIds: state.players.filter((p) => p.isAlive && !p.isHost).map((p) => p.playerId),
       votes: {},
       round: state.mayorElection?.round ?? 1,
       status: "voting",

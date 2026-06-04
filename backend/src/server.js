@@ -220,8 +220,13 @@ io.on("connection", (socket) => {
         player.isConnected = true;
         player.lastSeenAt = new Date().toISOString();
         player.ip = ip;
-        if (playerName && player.name !== playerName) {
-          if (player.canChangeName) player.name = String(playerName).trim().slice(0, 80) || player.name;
+        if (playerName && player.name !== playerName && player.canChangeName) {
+          const desired = String(playerName).trim().slice(0, 80) || player.name;
+          // Beim Reconnect keinen fremden Namen übernehmen (Impersonation vermeiden).
+          const taken = getState(null).players.some(
+            (p) => p.playerId !== player.playerId && p.name.toLowerCase() === desired.toLowerCase()
+          );
+          if (!taken) player.name = desired;
         }
         setSocketPlayer(socket.id, player.playerId);
         socket.emit("joined", {

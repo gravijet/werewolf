@@ -339,7 +339,9 @@ io.on("connection", (socket) => {
             ? "Nur der Host darf die Runde starten."
             : result.error === "not_enough_players"
               ? "Es sind noch nicht genug Spieler im Raum."
-              : "Die Runde konnte nicht gestartet werden.",
+              : result.error === "no_werewolf"
+                ? "Es muss mindestens einen Werwolf geben."
+                : "Die Runde konnte nicht gestartet werden.",
       });
       return;
     }

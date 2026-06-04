@@ -362,6 +362,44 @@ test("Niemand wird hingerichtet, wenn keine Stimme abgegeben wird", () => {
   assert.equal(gs.getState(null).phase, "result");
 });
 
+test("Jäger schießt auch dann, wenn sein Nacht-Tod das Spiel zu entscheiden scheint", () => {
+  setupLobby(3, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({
+      werwolf: { count: 1, enabled: true },
+      jaeger: { count: 1, enabled: true },
+      dorfbewohner: { count: 1, enabled: true },
+    }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2"].map((id) => gs.findPlayer(id));
+  const wolf = all.find((p) => p.role === "werwolf");
+  const jaeger = all.find((p) => p.role === "jaeger");
+
+  // Werwolf reißt den Jäger: Dorf (Jäger + Dorfbewohner) und Werwolf wären
+  // danach gleichauf -> ohne Jäger-Schuss hätte der Werwolf "gewonnen".
+  gs.submitNightAction("host", { targetId: jaeger.playerId });
+  const r = gs.advanceNightPhase("host");
+  assert.equal(r.phase, "jaeger_shot", "der Jäger darf vor der Siegprüfung schießen");
+
+  // Der sterbende Jäger erschießt den Werwolf -> das Dorf gewinnt doch.
+  const res = gs.submitJaegerKill("host", wolf.playerId);
+  assert.equal(res.winner, "village");
+  assert.equal(gs.getState(null).winner, "village");
+});
+
+test("startGame verlangt mindestens einen Werwolf", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ werwolf: { count: 0, enabled: false }, dorfbewohner: { count: 4, enabled: true } }),
+  });
+  const res = gs.startGame("host");
+  assert.equal(res.ok, false);
+  assert.equal(res.error, "no_werewolf");
+  // Der State bleibt unangetastet in der Lobby.
+  assert.equal(gs.getState(null).phase, "lobby");
+});
+
 test("Bürgermeisterwahl nach Tages-Gleichstand schließt die Spielleitung aus", () => {
   setupLobby(4, {
     mayorElectionEnabled: true,

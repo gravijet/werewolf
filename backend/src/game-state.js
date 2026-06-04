@@ -435,6 +435,13 @@ export function startGame(hostPlayerId) {
   const connectedPlayers = state.players.filter((p) => !p.isHost && p.isConnected);
   if (connectedPlayers.length < state.rules.minPlayers) return { ok: false, error: "not_enough_players" };
 
+  // Rollen VOR jeder State-Mutation verteilen und prüfen: Ohne mindestens einen
+  // Werwolf wäre die Partie sofort entschieden (Dorf-Sieg). Das verhindern wir,
+  // bevor der State angefasst wird (sonst bliebe eine halb gestartete Runde übrig).
+  const n = connectedPlayers.length;
+  const roles = distributeRoles(state.rules, n);
+  if (!roles.includes("werwolf")) return { ok: false, error: "no_werewolf" };
+
   state.round = 1;
   state.night = null;
   state.day = null;
@@ -443,9 +450,6 @@ export function startGame(hostPlayerId) {
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
   state.lastProtectedId = null;
-
-  const n = connectedPlayers.length;
-  const roles = distributeRoles(state.rules, n);
 
   connectedPlayers.forEach((p, i) => {
     p.role = roles[i] ?? "dorfbewohner";
@@ -878,20 +882,24 @@ export function advanceNightPhase(hostPlayerId) {
     }
   }
 
+  // Stirbt der Jäger in der Nacht, schießt er ZUERST – sein Schuss kann den
+  // Spielausgang noch drehen (z. B. den letzten Werwolf treffen). Erst danach
+  // (in submitJaegerKill) wird die Siegbedingung geprüft. Würde hier zuerst der
+  // Sieg ermittelt, ginge der entscheidende Schuss des Jägers verloren – genau
+  // so handhabt es auch die Tag-Auswertung.
+  if (jaegerKilledId && hasJaegerTarget()) {
+    state.jaegerSourceId = jaegerKilledId;
+    state.phase = "jaeger_shot";
+    schedulePersist();
+    return { ok: true, phase: "jaeger_shot", jaegerShot: true, jaegerSourceId: jaegerKilledId };
+  }
+
   const nightWinner = checkWinCondition();
   if (nightWinner) {
     state.phase = "game_end";
     state.winner = nightWinner;
     schedulePersist();
     return { ok: true, phase: "game_end", winner: nightWinner };
-  }
-
-  // Wenn der Jäger in der Nacht stirbt, darf er direkt danach schießen.
-  if (jaegerKilledId) {
-    state.jaegerSourceId = jaegerKilledId;
-    state.phase = "jaeger_shot";
-    schedulePersist();
-    return { ok: true, phase: "jaeger_shot", jaegerShot: true, jaegerSourceId: jaegerKilledId };
   }
 
   state.phase = "day";
@@ -1105,7 +1113,7 @@ export function resolveDayPhase(hostPlayerId) {
         return { ok: true, decided: true, eliminatedId, winner: "kopfgeldjaeger" };
       }
       const loverId = cascadeLover(eliminatedId, "day");
-      if (eliminated.role === "jaeger" || (loverId && findPlayer(loverId)?.role === "jaeger")) {
+      if ((eliminated.role === "jaeger" || (loverId && findPlayer(loverId)?.role === "jaeger")) && hasJaegerTarget()) {
         const jaegerSourceId = eliminated.role === "jaeger" ? eliminatedId : loverId;
         state.day.status = "decided";
         state.day.tieResolution = "random";
@@ -1140,7 +1148,7 @@ export function resolveDayPhase(hostPlayerId) {
 
       const loverId = cascadeLover(result.eliminatedId, "day");
 
-      if (eliminated.role === "jaeger") {
+      if (eliminated.role === "jaeger" && hasJaegerTarget()) {
         state.phase = "jaeger_shot";
         state.jaegerSourceId = result.eliminatedId;
         schedulePersist();
@@ -1148,7 +1156,7 @@ export function resolveDayPhase(hostPlayerId) {
       }
       if (loverId) {
         const lover = findPlayer(loverId);
-        if (lover?.role === "jaeger") {
+        if (lover?.role === "jaeger" && hasJaegerTarget()) {
           state.phase = "jaeger_shot";
           state.jaegerSourceId = loverId;
           schedulePersist();
@@ -1252,6 +1260,16 @@ export function advanceFromResult(hostPlayerId) {
   state.day = null;
   schedulePersist();
   return { ok: true, phase: "night", round: state.round };
+}
+
+/**
+ * Gibt es überhaupt noch ein gültiges Ziel für den Jäger-Schuss? Ist nach allen
+ * Todesfällen niemand Schießbares mehr übrig (nur noch Spielleitung/Tote), darf
+ * nicht in die jaeger_shot-Phase gewechselt werden – sonst hinge der Host in
+ * einer Auswahl ohne Optionen fest.
+ */
+function hasJaegerTarget() {
+  return state.players.some((p) => p.isAlive && !p.isHost && p.role !== "moderator");
 }
 
 /**

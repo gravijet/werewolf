@@ -34,8 +34,9 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
           ? "startRolesMismatch"
           : null;
 
+  // Direkter Beitritts-Link ohne Passwort: Gäste müssen nur ihren Namen eingeben.
   const inviteUrl =
-    typeof window !== "undefined" ? window.location.origin + window.location.pathname : "";
+    typeof window !== "undefined" ? window.location.origin + "/nopassword" : "";
 
   const doCopy = async () => {
     try {

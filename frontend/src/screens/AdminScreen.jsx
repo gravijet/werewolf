@@ -3,6 +3,7 @@ import { useGame } from "../context/GameContext";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
+import { ROLE_IDS, countConfiguredRoles } from "../lib/roles";
 import { t } from "../i18n/translations";
 
 export function AdminScreen({ lang, onClose }) {
@@ -279,13 +280,7 @@ export function AdminScreen({ lang, onClose }) {
             {/* Rollen */}
             {(() => {
               const playerCount = players.filter((p) => !p.isHost).length;
-              const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker", "beschuetzer"];
-              const totalRoles = roleIds.reduce((s, roleId) => {
-                const r = rules.roles?.[roleId] ?? {};
-                if (!r.enabled) return s;
-                if (roleId === "werwolf" && r.count === "1/3") return s + Math.max(1, Math.floor(playerCount / 3));
-                return s + (Number(r.count) || 0);
-              }, 0);
+              const totalRoles = countConfiguredRoles(rules, playerCount);
               const ok = totalRoles === playerCount && playerCount >= 3;
 
               return (
@@ -300,7 +295,7 @@ export function AdminScreen({ lang, onClose }) {
                     {t(lang, "rolesHelp")}
                   </p>
                   <div style={{ display: "grid", gap: 16 }}>
-                    {roleIds.map((roleId) => {
+                    {ROLE_IDS.map((roleId) => {
                       const r = rules.roles?.[roleId] ?? {};
                       const count = r.enabled ? (r.count === "1/3" ? "1/3" : (Number(r.count) || 0)) : 0;
                       const num = typeof count === "number" ? count : null;

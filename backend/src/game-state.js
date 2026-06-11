@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from "crypto";
-import { DEFAULT_ROOM_CODE, DEFAULT_RULES } from "./constants.js";
+import { DEFAULT_ROOM_CODE, DEFAULT_RULES, MAX_PLAYERS, MAX_GAME_LOG_ENTRIES } from "./constants.js";
 import { distributeRoles } from "./roles-engine.js";
 import * as persistence from "./persistence.js";
 
@@ -49,11 +49,18 @@ export function getBansForPersistence() {
 export function loadStateFromPersistence(data) {
   if (!data?.state) return;
   state = data.state;
-  if (data.bans) {
-    bans.players = new Map(Array.isArray(data.bans.players) ? data.bans.players : []);
-    bans.fingerprints = new Set(data.bans.fingerprints || []);
-    bans.ips = new Set(data.bans.ips || []);
-  }
+  loadBansFromPersistence(data);
+}
+
+/**
+ * Nur die Bans wiederherstellen (ohne Spielzustand). Wird beim Serverstart
+ * genutzt: Die Lobby beginnt leer, aber Sperren überleben einen Neustart.
+ */
+export function loadBansFromPersistence(data) {
+  if (!data?.bans) return;
+  bans.players = new Map(Array.isArray(data.bans.players) ? data.bans.players : []);
+  bans.fingerprints = new Set(data.bans.fingerprints || []);
+  bans.ips = new Set(data.bans.ips || []);
 }
 
 function schedulePersist() {
@@ -198,6 +205,10 @@ function maskPlayer(player, viewerPlayerId) {
   // (am Spielende für die Auflösung auch alle anderen).
   if ((isViewer || isGameEnd) && player.role === "kopfgeldjaeger" && player.bountyTargetId) {
     out.bountyTargetId = player.bountyTargetId;
+  }
+  // Der Älteste sieht nur selbst, ob sein zusätzliches Leben verbraucht ist.
+  if (isViewer && player.role === "aelteste") {
+    out.elderUsedLife = Boolean(player.elderUsedLife);
   }
   // Verliebte: dem Spieler selbst immer, am Spielende allen (für die Auflösung).
   if ((isViewer || isGameEnd) && player.inLove) {
@@ -402,15 +413,37 @@ export function adminSetRules(adminPlayerId, newRules) {
   if (!admin || (!admin.isAdmin && !admin.isHost)) return { ok: false, error: "not_admin_or_host" };
   if (state.phase !== "lobby") return { ok: false, error: "game_started" };
   if (newRules && typeof newRules === "object") {
-    const merged = { ...state.rules, ...newRules };
+    const merged = { ...state.rules };
+
+    // Nur bekannte Felder übernehmen und Werte hart begrenzen – ein Host darf
+    // den Server nicht mit absurden Regeln (z. B. maxPlayers = 1e9) verstellen.
+    const clampInt = (value, min, max, fallback) => {
+      const n = Math.floor(Number(value));
+      if (!Number.isFinite(n)) return fallback;
+      return Math.min(max, Math.max(min, n));
+    };
+    if ("minPlayers" in newRules) merged.minPlayers = clampInt(newRules.minPlayers, 3, MAX_PLAYERS, merged.minPlayers);
+    if ("maxPlayers" in newRules) merged.maxPlayers = clampInt(newRules.maxPlayers, merged.minPlayers, MAX_PLAYERS, merged.maxPlayers);
+    if ("voteDurationSeconds" in newRules)
+      merged.voteDurationSeconds = clampInt(newRules.voteDurationSeconds, 30, 900, merged.voteDurationSeconds);
+    if ("mayorElectionEnabled" in newRules) merged.mayorElectionEnabled = Boolean(newRules.mayorElectionEnabled);
+    if ("revealRolesToDead" in newRules) merged.revealRolesToDead = Boolean(newRules.revealRolesToDead);
+    if ("seherMode" in newRules && ["good_evil", "exact_role"].includes(newRules.seherMode)) {
+      merged.seherMode = newRules.seherMode;
+    }
+
     if (newRules.roles && typeof newRules.roles === "object") {
+      const knownRoleIds = Object.keys(DEFAULT_RULES.roles);
       const normalizedRoles = {};
       for (const [roleId, roleConfig] of Object.entries(newRules.roles)) {
+        if (!knownRoleIds.includes(roleId)) continue;
         const rawCount = roleConfig?.count;
+        // "1/3" ist nur für Werwölfe sinnvoll (dynamische Anzahl).
         const normalizedCount =
-          rawCount === "1/3" ? "1/3" : Math.max(0, Number.isFinite(Number(rawCount)) ? Number(rawCount) : 0);
+          rawCount === "1/3" && roleId === "werwolf"
+            ? "1/3"
+            : clampInt(rawCount, 0, MAX_PLAYERS, 0);
         normalizedRoles[roleId] = {
-          ...roleConfig,
           count: normalizedCount,
           enabled: normalizedCount === "1/3" ? true : normalizedCount > 0,
         };
@@ -458,6 +491,7 @@ export function startGame(hostPlayerId) {
     p.inLove = false;
     p.lovePartnerId = null;
     p.bountyTargetId = null;
+    p.elderUsedLife = false;
   });
 
   // Kopfgeldjäger: feste Zielperson zu Spielbeginn auslosen (eine andere
@@ -849,6 +883,17 @@ export function advanceNightPhase(hostPlayerId) {
     victimId = null;
   }
 
+  // Der Älteste übersteht den ersten Werwolf-Angriff der Partie. Das passiert
+  // still (kein Log-Eintrag), damit das Dorf seine Identität nicht erfährt.
+  // Gift der Hexe, Abstimmung und Jäger-Schuss treffen ihn dagegen normal.
+  if (victimId) {
+    const elderVictim = findPlayer(victimId);
+    if (elderVictim?.role === "aelteste" && !elderVictim.elderUsedLife) {
+      elderVictim.elderUsedLife = true;
+      victimId = null;
+    }
+  }
+
   if (healId && victimId === healId) {
     victimId = null;
     state.witchUsedHeal = true;
@@ -926,6 +971,10 @@ function addGameLog(round, phase, messageKey, playerName) {
     playerName: playerName ?? null,
     at: new Date().toISOString(),
   });
+  // Protokoll begrenzen, damit der State (Broadcast + Persistenz) nicht unbegrenzt wächst.
+  if (state.gameLog.length > MAX_GAME_LOG_ENTRIES) {
+    state.gameLog.splice(0, state.gameLog.length - MAX_GAME_LOG_ENTRIES);
+  }
 }
 
 function cascadeLover(deadPlayerId, phase) {
@@ -1021,13 +1070,16 @@ function countDayVotes() {
   if (!state.day.runoffCandidates) {
     return { eliminatedId: null, tie: true, runoff: winners };
   }
-  // Stichwahl-Gleichstand: Bürgermeister-Stimme zählt doppelt (nur hier)
+  // Stichwahl-Gleichstand: Bürgermeister-Stimme zählt doppelt (nur hier).
+  // Nur wenn die Bürgermeister-Stimme den Gleichstand tatsächlich auflöst,
+  // scheidet jemand aus – sonst würde willkürlich die zuerst gelistete Person
+  // „gewinnen", obwohl alle gleich viele Stimmen haben.
   if (mayor) {
     const mayorVote = votes[mayor.playerId];
-    if (mayorVote && winners.includes(mayorVote)) count[mayorVote] += 1;
-    const maxVotes = Math.max(...winners.map((id) => count[id]));
-    const eliminated = winners.find((id) => count[id] === maxVotes);
-    if (eliminated) return { eliminatedId: eliminated, tie: false };
+    if (mayorVote && winners.includes(mayorVote)) {
+      return { eliminatedId: mayorVote, tie: false };
+    }
+    return { eliminatedId: null, tie: true };
   }
   // Kein Bürgermeister oder hat nicht unter Kandidaten gewählt → Bürgermeisterwahl nötig (oder Zufall bei deaktiviert)
   return { eliminatedId: null, tie: true, needMayorElection: !mayor, tiedWinnerIds: winners };
@@ -1438,6 +1490,7 @@ function doResetToLobby() {
     p.inLove = false;
     p.lovePartnerId = null;
     p.bountyTargetId = null;
+    p.elderUsedLife = false;
   });
 }
 

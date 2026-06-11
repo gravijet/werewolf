@@ -5,6 +5,7 @@ import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
 import { QrModal } from "../components/QrModal";
 import { usePwaInstall } from "../lib/usePwaInstall";
+import { countConfiguredRoles } from "../lib/roles";
 import { t } from "../i18n/translations";
 
 export function LobbyScreen({ lang, onOpenAdmin }) {
@@ -16,13 +17,7 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
   const rules = state?.rules ?? {};
   const connectedCount = players.filter((p) => p.isConnected && !p.isHost).length;
   const minPlayers = Number(rules.minPlayers) || 3;
-  const roleIds = ["werwolf", "seher", "hexe", "dorfbewohner", "amor", "kopfgeldjaeger", "jaeger", "blinzelmaedchen", "baecker", "beschuetzer"];
-  const totalRoles = roleIds.reduce((sum, roleId) => {
-    const r = rules.roles?.[roleId];
-    if (!r?.enabled) return sum;
-    if (roleId === "werwolf" && r?.count === "1/3") return sum + Math.max(1, Math.floor(connectedCount / 3));
-    return sum + (Number(r?.count) || 0);
-  }, 0);
+  const totalRoles = countConfiguredRoles(rules, connectedCount);
   const isHostOrAdmin = me?.isHost || me?.isAdmin;
   const canStart = isHostOrAdmin && connectedCount >= minPlayers && totalRoles <= connectedCount;
   const startDisabledReason =

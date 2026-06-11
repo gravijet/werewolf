@@ -16,6 +16,7 @@ const ROLE_IDS = [
   "blinzelmaedchen",
   "baecker",
   "beschuetzer",
+  "aelteste",
 ];
 
 /** Welche Rollen beim Überlauf zuerst entfernt werden (Füll-/Bulk-Rollen). */
@@ -107,5 +108,8 @@ export function getRoleMeta() {
     blinzelmaedchen: { label: "Blinzelmädchen", team: "village" },
     baecker: { label: "Bäcker", team: "village" },
     beschuetzer: { label: "Beschützer", team: "village" },
+    aelteste: { label: "Der Älteste", team: "village" },
   };
 }
+
+export { ROLE_IDS };

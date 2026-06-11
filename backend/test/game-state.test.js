@@ -400,6 +400,134 @@ test("startGame verlangt mindestens einen Werwolf", () => {
   assert.equal(gs.getState(null).phase, "lobby");
 });
 
+test("Der Älteste überlebt den ersten Werwolf-Angriff, nicht den zweiten", () => {
+  setupLobby(3, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ aelteste: { count: 1, enabled: true }, dorfbewohner: { count: 1, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2"].map((id) => gs.findPlayer(id));
+  const elder = all.find((p) => p.role === "aelteste");
+
+  // Nacht 1: Werwölfe greifen den Ältesten an – er überlebt still.
+  gs.submitNightAction("host", { targetId: elder.playerId });
+  gs.advanceNightPhase("host");
+  assert.equal(gs.findPlayer(elder.playerId).isAlive, true, "Der Älteste überlebt den ersten Angriff");
+  assert.equal(gs.getState(null).night.victimId, null, "kein Nachtopfer");
+  assert.equal(gs.getState(null).phase, "day");
+
+  // Nur der Älteste selbst sieht, dass sein Extra-Leben verbraucht ist.
+  const ownView = gs.getState(elder.playerId).players.find((p) => p.playerId === elder.playerId);
+  assert.equal(ownView.elderUsedLife, true);
+  const otherId = all.find((p) => p.playerId !== elder.playerId).playerId;
+  const otherView = gs.getState(otherId).players.find((p) => p.playerId === elder.playerId);
+  assert.equal(otherView.elderUsedLife, undefined, "andere sehen das Extra-Leben nicht");
+
+  // Tag überspringen, Nacht 2: zweiter Angriff ist tödlich.
+  gs.hostSkipPhase("host");
+  gs.advanceFromResult("host");
+  gs.submitNightAction("host", { targetId: elder.playerId });
+  gs.advanceNightPhase("host");
+  assert.equal(gs.findPlayer(elder.playerId).isAlive, false, "der zweite Angriff tötet den Ältesten");
+});
+
+test("Der Älteste ist nicht gegen den Gifttrank der Hexe gefeit", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({
+      aelteste: { count: 1, enabled: true },
+      hexe: { count: 1, enabled: true },
+      dorfbewohner: { count: 1, enabled: true },
+    }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const elder = all.find((p) => p.role === "aelteste");
+  const hexe = all.find((p) => p.role === "hexe");
+
+  gs.advanceNightPhase("host"); // werwolf (kein Opfer) -> hexe
+  gs.submitNightAction(hexe.playerId, { poisonId: elder.playerId });
+  gs.advanceNightPhase("host");
+  assert.equal(gs.findPlayer(elder.playerId).isAlive, false, "Gift wirkt trotz Extra-Leben");
+});
+
+test("Stichwahl-Gleichstand: enthält sich der Bürgermeister, scheidet niemand aus", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: true,
+    roles: FULL_ROLES({ dorfbewohner: { count: 4, enabled: true } }),
+  });
+  gs.startGame("host");
+  gs.hostSetMayor("host", "p4"); // p4 wird Bürgermeister -> Nacht
+  gs.advanceNightPhase("host"); // kein Nachtopfer -> Tag
+
+  // Gleichstand p0 vs p1 erzwingen.
+  gs.submitDayAccusation("p2", "p0");
+  gs.submitDayAccusation("p3", "p1");
+  gs.resolveDayPhase("host"); // -> voting
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p3", "p1");
+  gs.resolveDayPhase("host"); // erster Gleichstand -> Stichwahl
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p3", "p1");
+  // Der Bürgermeister stimmt für niemanden -> sein Doppelstimmrecht greift nicht.
+  gs.submitDayVote("p4", null);
+  const res = gs.resolveDayPhase("host");
+
+  assert.equal(res.eliminatedId, null, "ohne Entscheidung des Bürgermeisters scheidet niemand aus");
+  assert.equal(gs.findPlayer("p0").isAlive, true);
+  assert.equal(gs.findPlayer("p1").isAlive, true);
+  assert.equal(gs.getState(null).phase, "result");
+});
+
+test("Stichwahl-Gleichstand: Bürgermeister-Stimme entscheidet", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: true,
+    roles: FULL_ROLES({ dorfbewohner: { count: 4, enabled: true } }),
+  });
+  gs.startGame("host");
+  gs.hostSetMayor("host", "p4");
+  gs.advanceNightPhase("host");
+
+  gs.submitDayAccusation("p2", "p0");
+  gs.submitDayAccusation("p3", "p1");
+  gs.resolveDayPhase("host");
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p3", "p1");
+  gs.resolveDayPhase("host"); // -> Stichwahl
+  gs.submitDayVote("p2", "p0");
+  gs.submitDayVote("p3", "p1");
+  gs.submitDayVote("p4", "p1"); // Bürgermeister entscheidet für p1
+  const res = gs.resolveDayPhase("host");
+
+  assert.equal(res.eliminatedId, "p1", "die Bürgermeister-Stimme bricht den Gleichstand");
+  assert.equal(gs.findPlayer("p1").isAlive, false);
+});
+
+test("adminSetRules begrenzt Werte und verwirft unbekannte Felder", () => {
+  setupLobby(3);
+  gs.adminSetRules("host", {
+    maxPlayers: 999999,
+    minPlayers: -10,
+    voteDurationSeconds: 5,
+    seherMode: "cheat_mode",
+    unknownField: true,
+    roles: {
+      fakeRole: { count: 3, enabled: true },
+      werwolf: { count: "1/3", enabled: true },
+      seher: { count: 99, enabled: true },
+    },
+  });
+  const rules = gs.getState(null).rules;
+  assert.equal(rules.maxPlayers, 50, "maxPlayers ist hart gedeckelt");
+  assert.equal(rules.minPlayers, 3, "minPlayers fällt nicht unter 3");
+  assert.equal(rules.voteDurationSeconds, 30, "voteDurationSeconds hat eine Untergrenze");
+  assert.equal(rules.seherMode, "good_evil", "ungültiger seherMode wird ignoriert");
+  assert.equal(rules.unknownField, undefined, "unbekannte Felder werden verworfen");
+  assert.equal(rules.roles.fakeRole, undefined, "unbekannte Rollen werden verworfen");
+  assert.equal(rules.roles.werwolf.count, "1/3");
+  assert.equal(rules.roles.seher.count, 50, "Rollenanzahl ist gedeckelt");
+});
+
 test("Bürgermeisterwahl nach Tages-Gleichstand schließt die Spielleitung aus", () => {
   setupLobby(4, {
     mayorElectionEnabled: true,

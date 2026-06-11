@@ -142,6 +142,17 @@ export function NightScreen({ lang }) {
           </Card>
         )}
 
+        {myRole === "aelteste" && myPlayer?.elderUsedLife && (
+          <Card style={{ marginBottom: 24, padding: "14px 18px", background: "var(--md-sys-color-error-container)", border: "1px solid transparent" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-error)", fontSize: 24 }}>heart_broken</span>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-error-container)", lineHeight: 1.4 }}>
+                {t(lang, "elderLifeUsedHint")}
+              </p>
+            </div>
+          </Card>
+        )}
+
         {myRole === "kopfgeldjaeger" && bountyTarget && (
           <Card style={{ marginBottom: 24, padding: "16px 18px", background: "var(--md-sys-color-tertiary-container)", border: "1px solid transparent" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -299,7 +310,7 @@ export function NightScreen({ lang }) {
                           padding: "14px 20px",
                           borderRadius: "16px",
                           border: "1px solid transparent",
-                          background: hexeHeal === wervictim.playerId ? "color-mix(in srgb, var(--success) 20%, white)" : "var(--md-sys-color-surface-container-low)",
+                          background: hexeHeal === wervictim.playerId ? "color-mix(in srgb, var(--success) 20%, var(--md-sys-color-surface))" : "var(--md-sys-color-surface-container-low)",
                           color: "var(--md-sys-color-on-surface)",
                           fontSize: 15,
                           fontWeight: 600,
@@ -466,7 +477,7 @@ export function NightScreen({ lang }) {
           <div
             style={{
               padding: "24px",
-            background: "color-mix(in srgb, var(--success) 16%, white)",
+            background: "color-mix(in srgb, var(--success) 16%, var(--md-sys-color-surface))",
             border: "1px solid transparent",
             borderRadius: "var(--radius-lg)",
             color: "var(--md-sys-color-on-surface)",

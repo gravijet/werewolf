@@ -14,6 +14,7 @@ const ROLE_ICON = {
   blinzelmaedchen: "child_care",
   baecker: "bakery_dining",
   beschuetzer: "shield",
+  aelteste: "elderly",
   moderator: "admin_panel_settings",
 };
 
@@ -27,6 +28,7 @@ const TEAM = {
   blinzelmaedchen: "village",
   baecker: "village",
   beschuetzer: "village",
+  aelteste: "village",
   kopfgeldjaeger: "solo",
   moderator: "moderator",
 };

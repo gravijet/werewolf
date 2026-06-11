@@ -35,5 +35,9 @@ export const DEFAULT_RULES = {
     blinzelmaedchen: { count: 0, enabled: false },
     baecker: { count: 0, enabled: false },
     beschuetzer: { count: 0, enabled: false },
+    aelteste: { count: 0, enabled: false },
   },
 };
+
+/** Obergrenze für das Spielprotokoll, damit der State nicht unbegrenzt wächst. */
+export const MAX_GAME_LOG_ENTRIES = 200;

@@ -130,6 +130,15 @@ export function DayScreen({ lang }) {
           </div>
         )}
 
+        {myDayPlayer?.role === "aelteste" && myDayPlayer?.elderUsedLife && !iAmDead && (
+          <div style={{ padding: "14px 18px", marginBottom: 24, background: "var(--md-sys-color-error-container)", borderRadius: "var(--radius-lg)", display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-error)", fontSize: 22, flexShrink: 0 }}>heart_broken</span>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-error-container)", lineHeight: 1.4 }}>
+              {t(lang, "elderLifeUsedHint")}
+            </p>
+          </div>
+        )}
+
         {iAmSilenced && !iAmDead && (
           <div style={{ padding: "16px", marginBottom: 24, background: "var(--md-sys-color-surface-variant)", borderRadius: "var(--radius-lg)", color: "var(--md-sys-color-on-surface-variant)", fontWeight: 600 }}>
             {t(lang, "daySilencedNotice")}

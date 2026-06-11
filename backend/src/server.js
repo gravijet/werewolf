@@ -47,6 +47,7 @@ import {
   hostKick,
   getStateForPersistence,
   getBansForPersistence,
+  loadBansFromPersistence,
   forceUnban,
   resetState,
   resetToLobbyAfterGameEnd,
@@ -148,6 +149,32 @@ function makeLimiter() {
   };
 }
 
+/**
+ * Globaler Limiter pro IP: Der Limiter pro Socket ließe sich sonst durch das
+ * Öffnen vieler Verbindungen umgehen. Abgelaufene Einträge werden regelmäßig
+ * aufgeräumt, damit die Map nicht unbegrenzt wächst.
+ */
+const ipLimiter = makeLimiterStore();
+function makeLimiterStore() {
+  const buckets = new Map();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, b] of buckets) {
+      if (now > b.resetAt) buckets.delete(key);
+    }
+  }, 60000).unref();
+  return (key, max, windowMs) => {
+    const now = Date.now();
+    let b = buckets.get(key);
+    if (!b || now > b.resetAt) {
+      b = { count: 0, resetAt: now + windowMs };
+      buckets.set(key, b);
+    }
+    b.count += 1;
+    return b.count <= max;
+  };
+}
+
 io.on("connection", (socket) => {
   const ip =
     socket.handshake.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
@@ -197,6 +224,12 @@ io.on("connection", (socket) => {
         socket.emit("join_error", { code, message });
         if (typeof ack === "function") ack({ ok: false, code, message });
       };
+
+      if (!ipLimiter("join:" + ip, 30, 60000)) {
+        socket.emit("error", { code: "rate_limited", message: "Zu viele Anfragen. Bitte kurz warten." });
+        if (typeof ack === "function") ack({ ok: false, code: "rate_limited" });
+        return;
+      }
 
       if (getState(null).phase === "game_end") {
         resetToLobbyAfterGameEnd();
@@ -617,6 +650,13 @@ io.on("connection", (socket) => {
 });
 
 // Beim Neustart: kein Spielstand laden – immer mit leerer Lobby starten.
+// Bans bleiben dagegen über Neustarts hinweg bestehen.
+try {
+  const persisted = persistence.load();
+  if (persisted) loadBansFromPersistence(persisted);
+} catch (e) {
+  console.warn("Bans laden:", e.message);
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 httpServer.listen(PORT, () => {

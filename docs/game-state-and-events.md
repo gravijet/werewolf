@@ -55,6 +55,7 @@ Dadurch klickt der Host nicht mehr durch leere Phasen.
 | `blinzelmaedchen` | Dorf    | Darf nachts die Werwölfe „erspähen". |
 | `baecker`         | Dorf    | Schaltet eine Person für den nächsten Tag stumm. |
 | `beschuetzer`     | Dorf    | Schützt jede Nacht eine Person vor den Werwölfen (nicht zweimal dieselbe in Folge). |
+| `aelteste`        | Dorf    | Übersteht den ersten Werwolf-Angriff der Partie (still, ohne Log). Gift, Abstimmung und Jäger-Schuss wirken normal. |
 | `moderator`       | –       | Der Host; spielt nicht aktiv mit. |
 
 Die Verteilung erfolgt in `roles-engine.js`. `count` kann `"1/3"` (Werwölfe) oder eine feste Zahl

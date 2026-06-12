@@ -36,6 +36,8 @@ export const DEFAULT_RULES = {
     baecker: { count: 0, enabled: false },
     beschuetzer: { count: 0, enabled: false },
     aelteste: { count: 0, enabled: false },
+    zwilling: { count: 0, enabled: false },
+    dorfdepp: { count: 0, enabled: false },
   },
 };
 

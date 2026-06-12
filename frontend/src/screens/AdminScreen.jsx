@@ -497,10 +497,17 @@ export function AdminScreen({ lang, onClose }) {
                       {(me?.isAdmin || me?.isHost) && <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--md-sys-color-on-surface-variant)", opacity: 0.6 }}>edit</span>}
                     </button>
                   )}
-                  <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
                     {p.isHost && <span style={{ fontSize: 13, padding: "4px 8px", background: "var(--md-sys-color-secondary-container)", color: "var(--md-sys-color-on-secondary-container)", borderRadius: "6px", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase" }}>{t(lang, "host")}</span>}
                     {p.isMayor && <span style={{ fontSize: 13, padding: "4px 8px", background: "var(--md-sys-color-tertiary-container)", color: "var(--md-sys-color-on-tertiary-container)", borderRadius: "6px", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase" }}>{t(lang, "mayor")}</span>}
-                    {!p.isHost && !p.isMayor && <span style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)" }}>{t(lang, "rolePlayer")}</span>}
+                    {/* Rolle erscheint nur, wenn der Server sie für diese Sicht freigegeben hat (z. B. Spielleitung). */}
+                    {p.role && p.role !== "moderator" && state?.phase !== "lobby" && (
+                      <span style={{ fontSize: 13, padding: "4px 8px", background: "var(--md-sys-color-primary-container)", color: "var(--md-sys-color-on-primary-container)", borderRadius: "6px", fontWeight: 600 }}>
+                        {t(lang, p.role) || p.role}
+                        {p.isAlive === false ? " · " + t(lang, "dead") : ""}
+                      </span>
+                    )}
+                    {!p.isHost && !p.isMayor && !p.role && <span style={{ fontSize: 14, fontWeight: 500, color: "var(--md-sys-color-on-surface-variant)" }}>{t(lang, "rolePlayer")}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>

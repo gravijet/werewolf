@@ -57,6 +57,7 @@ Alle Clients verbinden sich mit demselben Raum. Siehe `docs/game-state-and-event
 
 - Spieler: `WOLFGAME` (überschreibbar mit `PLAYER_PASSWORD`)
 - Admin: `WOLFGAMEADMIN` (überschreibbar mit `ADMIN_PASSWORD`)
+- **Einladungs-Token:** Alternativ zum Passwort erlaubt `join` ein `inviteToken` (aus dem geteilten Link `/nopassword?t=<token>`). Das Token ist nur für beigetretene Mitglieder im State sichtbar, überlebt Server-Neustarts und rotiert bei jedem Spiel-Reset.
 
 Optional: `.env` im Ordner `backend/` anlegen (wird via `dotenv` geladen). Siehe `.env.example`.
 

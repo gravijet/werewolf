@@ -30,8 +30,13 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
           : null;
 
   // Direkter Beitritts-Link ohne Passwort: Gäste müssen nur ihren Namen eingeben.
+  // Das Einladungs-Token im Link ersetzt das Passwort serverseitig.
   const inviteUrl =
-    typeof window !== "undefined" ? window.location.origin + "/nopassword" : "";
+    typeof window !== "undefined"
+      ? window.location.origin +
+        "/nopassword" +
+        (state?.inviteToken ? `?t=${encodeURIComponent(state.inviteToken)}` : "")
+      : "";
 
   const doCopy = async () => {
     try {

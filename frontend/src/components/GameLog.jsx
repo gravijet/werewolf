@@ -8,6 +8,7 @@ const LOG_ICON = {
   lynch: "gavel",
   jaeger_shot: "sports_martial_arts",
   lover_death: "heart_broken",
+  idiot_revealed: "sentiment_very_dissatisfied",
 };
 
 const LOG_KEY = {
@@ -16,6 +17,7 @@ const LOG_KEY = {
   lynch: "logLynch",
   jaeger_shot: "logJaegerShot",
   lover_death: "logLoverDeath",
+  idiot_revealed: "logIdiotRevealed",
 };
 
 /** Einheitliche Darstellung des Spielprotokolls (Geist- & Spielende-Screen). */

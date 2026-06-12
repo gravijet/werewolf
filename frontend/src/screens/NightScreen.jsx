@@ -46,7 +46,7 @@ export function NightScreen({ lang }) {
     if (myRole === "hexe") emit("night_action", { healId: hexeHeal || undefined, poisonId: hexePoison || undefined });
     if (myRole === "amor" && amorLover1 && amorLover2) emit("night_action", { lover1Id: amorLover1, lover2Id: amorLover2 });
     if (myRole === "baecker") emit("night_action", { targetId: baeckerTarget || null });
-    if (myRole === "beschuetzer" && beschuetzerTarget) emit("night_action", { targetId: beschuetzerTarget });
+    if (myRole === "beschuetzer") emit("night_action", { targetId: beschuetzerTarget || null });
   };
 
   const hasActed =
@@ -55,7 +55,7 @@ export function NightScreen({ lang }) {
     (myRole === "hexe" && (actions.hexe?.healId || actions.hexe?.poisonId || actions.hexe?.passed)) ||
     (myRole === "amor" && (actions.amor?.lover1Id && actions.amor?.lover2Id)) ||
     (myRole === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed)) ||
-    (myRole === "beschuetzer" && actions.beschuetzer?.targetId);
+    (myRole === "beschuetzer" && (actions.beschuetzer?.targetId || actions.beschuetzer?.passed));
 
   const seherResultId = actions.seher?.targetId;
   const seherResultPlayer = seherResultId ? (state?.players ?? []).find(p => p.playerId === seherResultId) : null;
@@ -152,6 +152,24 @@ export function NightScreen({ lang }) {
             </div>
           </Card>
         )}
+
+        {myRole === "zwilling" && (() => {
+          const twins = (state?.players ?? []).filter(
+            (p) => p.role === "zwilling" && p.playerId !== me?.playerId
+          );
+          return (
+            <Card style={{ marginBottom: 24, padding: "14px 18px", background: "var(--md-sys-color-secondary-container)", border: "1px solid transparent" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 24 }}>group</span>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-secondary-container)", lineHeight: 1.4 }}>
+                  {twins.length > 0
+                    ? t(lang, "zwillingPartnerHint").replace("{names}", twins.map((p) => p.name).join(", "))
+                    : t(lang, "zwillingAloneHint")}
+                </p>
+              </div>
+            </Card>
+          );
+        })()}
 
         {myRole === "kopfgeldjaeger" && bountyTarget && (
           <Card style={{ marginBottom: 24, padding: "16px 18px", background: "var(--md-sys-color-tertiary-container)", border: "1px solid transparent" }}>
@@ -442,9 +460,10 @@ export function NightScreen({ lang }) {
                     );
                   })}
                 </div>
-                {lastProtectedId && (
-                  <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>{t(lang, "beschuetzerSameHint")}</p>
-                )}
+                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginTop: 12 }}>
+                  {t(lang, "beschuetzerOptionalHint")}
+                  {lastProtectedId ? " " + t(lang, "beschuetzerSameHint") : ""}
+                </p>
               </>
             )}
 
@@ -464,7 +483,6 @@ export function NightScreen({ lang }) {
               disabled={
                 (me?.isHost && subPhase === "werwolf") || myRole === "seher" ? !selectedTarget :
                 myRole === "amor" ? !(amorLover1 && amorLover2) :
-                myRole === "beschuetzer" ? !beschuetzerTarget :
                 false
               }
             >
@@ -571,7 +589,7 @@ export function NightScreen({ lang }) {
           {subPhase === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed) && (
             <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "baecker")}: {t(lang, "statusReady")}</p>
           )}
-          {subPhase === "beschuetzer" && actions.beschuetzer?.targetId && (
+          {subPhase === "beschuetzer" && (actions.beschuetzer?.targetId || actions.beschuetzer?.passed) && (
             <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "beschuetzer")}: {t(lang, "statusReady")}</p>
           )}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

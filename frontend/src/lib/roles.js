@@ -16,6 +16,8 @@ export const ROLE_IDS = [
   "baecker",
   "beschuetzer",
   "aelteste",
+  "zwilling",
+  "dorfdepp",
 ];
 
 /**

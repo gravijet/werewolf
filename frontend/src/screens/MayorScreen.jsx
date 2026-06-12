@@ -89,9 +89,14 @@ export function MayorScreen({ lang }) {
             const count = voteCounts[p.playerId] ?? 0;
             const max = Math.max(...Object.values(voteCounts), 1);
             const isVoted = myVote === p.playerId;
-            const hasVoted = myVote !== undefined && myVote !== null && election?.status !== "tie_redo";
             const votingFinished = election?.status === "decided";
-            const canVote = !me?.isHost && !votingFinished && !hasVoted && election?.candidateIds?.includes(p.playerId);
+            // Die Stimme darf bis zur Auswertung geändert werden (der Server
+            // erlaubt das ohnehin – die Oberfläche soll nicht strenger sein).
+            const canVote =
+              !me?.isHost &&
+              !votingFinished &&
+              !myPlayer?.idiotRevealed &&
+              election?.candidateIds?.includes(p.playerId);
             const isLast = i === candidates.length - 1;
             
             return (

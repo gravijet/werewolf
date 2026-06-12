@@ -15,6 +15,8 @@ const ROLE_ICON = {
   baecker: "bakery_dining",
   beschuetzer: "shield",
   aelteste: "elderly",
+  zwilling: "group",
+  dorfdepp: "sentiment_very_dissatisfied",
   moderator: "admin_panel_settings",
 };
 
@@ -29,6 +31,8 @@ const TEAM = {
   baecker: "village",
   beschuetzer: "village",
   aelteste: "village",
+  zwilling: "village",
+  dorfdepp: "village",
   kopfgeldjaeger: "solo",
   moderator: "moderator",
 };

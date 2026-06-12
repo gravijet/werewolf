@@ -29,6 +29,27 @@ const bans = {
 };
 
 /**
+ * Einladungs-Token: Der passwortlose Beitritts-Link enthält dieses Token statt
+ * des Spieler-Passworts. So funktioniert der Link auch, wenn PLAYER_PASSWORD
+ * geändert wird, ohne das Passwort im Frontend zu verraten.
+ */
+let inviteToken = randomUUID();
+
+export function getInviteToken() {
+  return inviteToken;
+}
+
+export function rotateInviteToken() {
+  inviteToken = randomUUID();
+  return inviteToken;
+}
+
+/** Beim Serverstart: gespeichertes Token übernehmen, damit geteilte Links/QR-Codes gültig bleiben. */
+export function restoreInviteToken(token) {
+  if (typeof token === "string" && token.length >= 16) inviteToken = token;
+}
+
+/**
  * Für Persistenz: Roh-State und Bans serialisierbar machen.
  */
 export function getStateForPersistence() {
@@ -40,6 +61,15 @@ export function getBansForPersistence() {
     players: Array.from(bans.players.entries()),
     fingerprints: Array.from(bans.fingerprints),
     ips: Array.from(bans.ips),
+  };
+}
+
+/** Vollständiger Persistenz-Snapshot (State, Bans, Einladungs-Token). */
+export function getPersistSnapshot() {
+  return {
+    state: getStateForPersistence(),
+    bans: getBansForPersistence(),
+    inviteToken,
   };
 }
 
@@ -65,7 +95,7 @@ export function loadBansFromPersistence(data) {
 
 function schedulePersist() {
   try {
-    persistence.save({ state: getStateForPersistence(), bans: getBansForPersistence() });
+    persistence.save(getPersistSnapshot());
   } catch (e) {
     console.warn("Persist:", e.message);
   }
@@ -105,6 +135,21 @@ export function removeBan(adminPlayerId, targetPlayerId) {
   }
   schedulePersist();
   return { ok: true };
+}
+
+/**
+ * Minimaler öffentlicher Zustand für Sockets, die (noch) keinem Spieler
+ * zugeordnet sind. Verhindert, dass Unbeteiligte Spielernamen, Stimmen oder
+ * Spielverlauf mitlesen können – die Join-Maske braucht nur Phase und Anzahl.
+ */
+export function getPublicState() {
+  return {
+    public: true,
+    phase: state.phase,
+    round: state.round,
+    playersCount: state.players.filter((p) => !p.isHost).length,
+    rules: { minPlayers: state.rules.minPlayers, maxPlayers: state.rules.maxPlayers },
+  };
 }
 
 /**
@@ -166,6 +211,11 @@ export function getState(viewerPlayerId = null) {
     outState.lastProtectedId = null;
   }
 
+  // Einladungs-Token nur an Personen geben, die bereits im Raum sind.
+  if (viewer) {
+    outState.inviteToken = inviteToken;
+  }
+
   if (viewer?.isAdmin) {
     outState.bannedPlayers = Array.from(bans.players.entries()).map(([id, data]) => ({
       playerId: id,
@@ -183,8 +233,18 @@ function maskPlayer(player, viewerPlayerId) {
   const isDeadViewer = viewer && !viewer.isAlive;
   const isModerator = viewer && viewer.role === "moderator";
   const isGameEnd = state.phase === "game_end";
+  // Zwillinge erkennen einander ab Spielbeginn.
+  const isTwinPair =
+    viewer && viewer.role === "zwilling" && player.role === "zwilling";
   // Am Spielende werden alle Rollen für alle sichtbar (Auflösung).
-  const showRole = isViewer || isGameEnd || (isDeadViewer && state.rules?.revealRolesToDead) || isModerator;
+  const showRole =
+    isViewer ||
+    isGameEnd ||
+    (isDeadViewer && state.rules?.revealRolesToDead) ||
+    isModerator ||
+    isTwinPair ||
+    // Ein enttarnter Dorfdepp ist öffentlich bekannt.
+    (player.role === "dorfdepp" && player.idiotRevealed);
 
   const out = {
     playerId: player.playerId,
@@ -200,6 +260,10 @@ function maskPlayer(player, viewerPlayerId) {
   };
   if (showRole && state.phase !== "lobby") {
     out.role = player.role;
+  }
+  // Enttarnung des Dorfdepps ist öffentliches Wissen (er lebt, darf aber nicht mehr abstimmen).
+  if (player.idiotRevealed) {
+    out.idiotRevealed = true;
   }
   // Kopfgeldjäger: die ausgeloste Zielperson sieht nur der Kopfgeldjäger selbst
   // (am Spielende für die Auflösung auch alle anderen).
@@ -360,7 +424,14 @@ export function adminSetPlayerName(adminPlayerId, targetPlayerId, newName) {
   if (!admin || (!admin.isAdmin && !admin.isHost)) return { ok: false, error: "not_admin" };
   const target = findPlayer(targetPlayerId);
   if (!target) return { ok: false, error: "player_not_found" };
-  target.name = String(newName).trim().slice(0, 80) || target.name;
+  const name = String(newName).trim().slice(0, 80) || target.name;
+  // Auch Admin/Host dürfen niemanden auf einen bereits vergebenen Namen
+  // umbenennen (Verwechslungs-/Impersonationsschutz wie bei setPlayerName).
+  const clash = state.players.some(
+    (other) => other.playerId !== targetPlayerId && other.name.toLowerCase() === name.toLowerCase()
+  );
+  if (clash) return { ok: false, error: "name_taken" };
+  target.name = name;
   schedulePersist();
   return { ok: true, name: target.name };
 }
@@ -483,6 +554,8 @@ export function startGame(hostPlayerId) {
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
   state.lastProtectedId = null;
+  state.jaegerSourceId = null;
+  state.jaegerQueue = [];
 
   connectedPlayers.forEach((p, i) => {
     p.role = roles[i] ?? "dorfbewohner";
@@ -492,6 +565,7 @@ export function startGame(hostPlayerId) {
     p.lovePartnerId = null;
     p.bountyTargetId = null;
     p.elderUsedLife = false;
+    p.idiotRevealed = false;
   });
 
   // Kopfgeldjäger: feste Zielperson zu Spielbeginn auslosen (eine andere
@@ -553,6 +627,7 @@ export function submitMayorVote(playerId, targetPlayerId) {
   const p = findPlayer(playerId);
   if (!p || !p.isAlive) return { ok: false, error: "not_allowed" };
   if (p.isHost) return { ok: false, error: "host_does_not_vote" };
+  if (p.idiotRevealed) return { ok: false, error: "idiot_cannot_vote" };
   const target = findPlayer(targetPlayerId);
   if (!target || !state.mayorElection.candidateIds.includes(targetPlayerId))
     return { ok: false, error: "invalid_target" };
@@ -807,6 +882,13 @@ export function submitNightAction(playerId, payload) {
   if (p.role === "beschuetzer" && sub === "beschuetzer") {
     actions.beschuetzer = actions.beschuetzer || {};
     const targetId = payload?.targetId ?? payload?.targetPlayerId;
+    // Bewusst niemanden schützen („passen") ist erlaubt – so muss der Host
+    // die Phase nicht überspringen.
+    if (targetId === null || targetId === undefined) {
+      actions.beschuetzer.targetId = null;
+      actions.beschuetzer.passed = true;
+      return { ok: true };
+    }
     const target = findPlayer(targetId);
     // Schützen: lebende Person (auch sich selbst), aber nicht die Spielleitung
     // und nicht dieselbe Person wie in der vergangenen Nacht.
@@ -817,6 +899,7 @@ export function submitNightAction(playerId, payload) {
       targetId !== state.lastProtectedId
     ) {
       actions.beschuetzer.targetId = targetId;
+      actions.beschuetzer.passed = false;
     }
     return { ok: true };
   }
@@ -868,7 +951,9 @@ export function advanceNightPhase(hostPlayerId) {
   // Nacht beenden: Opfer ermitteln (Werwolf-Ziel, Hexe heilt/vergiftet)
   const actions = state.night.actions;
   let victimId = actions.werwolf?.targetId || null;
-  let jaegerKilledId = null;
+  // Alle in dieser Nacht gestorbenen Jäger sammeln – jeder von ihnen darf
+  // schießen (nacheinander), nicht nur der zuletzt gestorbene.
+  const deadJaegers = [];
   const healId = state.night.actions.hexe?.healId;
   const poisonId = state.night.actions.hexe?.poisonId;
 
@@ -903,12 +988,11 @@ export function advanceNightPhase(hostPlayerId) {
     const poisonVictim = findPlayer(poisonId);
     if (poisonVictim?.isAlive) {
       poisonVictim.isAlive = false;
-      if (poisonVictim.role === "jaeger") jaegerKilledId = poisonVictim.playerId;
+      if (poisonVictim.role === "jaeger") deadJaegers.push(poisonVictim.playerId);
       addGameLog(state.round, "night", "victim_hexe", poisonVictim.name);
       const poisonLoverId = cascadeLover(poisonId, "night");
-      if (poisonLoverId && !jaegerKilledId) {
-        const poisonLover = findPlayer(poisonLoverId);
-        if (poisonLover?.role === "jaeger") jaegerKilledId = poisonLoverId;
+      if (poisonLoverId && findPlayer(poisonLoverId)?.role === "jaeger") {
+        deadJaegers.push(poisonLoverId);
       }
     }
   }
@@ -916,13 +1000,12 @@ export function advanceNightPhase(hostPlayerId) {
     const victim = findPlayer(victimId);
     if (victim?.isAlive) {
       victim.isAlive = false;
-      if (victim.role === "jaeger") jaegerKilledId = victim.playerId;
+      if (victim.role === "jaeger") deadJaegers.push(victim.playerId);
       state.night.victimId = victimId;
       addGameLog(state.round, "night", "victim_werwolf", victim.name);
       const werwolfLoverId = cascadeLover(victimId, "night");
-      if (werwolfLoverId && !jaegerKilledId) {
-        const werwolfLover = findPlayer(werwolfLoverId);
-        if (werwolfLover?.role === "jaeger") jaegerKilledId = werwolfLoverId;
+      if (werwolfLoverId && findPlayer(werwolfLoverId)?.role === "jaeger") {
+        deadJaegers.push(werwolfLoverId);
       }
     }
   }
@@ -932,11 +1015,12 @@ export function advanceNightPhase(hostPlayerId) {
   // (in submitJaegerKill) wird die Siegbedingung geprüft. Würde hier zuerst der
   // Sieg ermittelt, ginge der entscheidende Schuss des Jägers verloren – genau
   // so handhabt es auch die Tag-Auswertung.
-  if (jaegerKilledId && hasJaegerTarget()) {
-    state.jaegerSourceId = jaegerKilledId;
+  if (deadJaegers.length > 0 && hasJaegerTarget()) {
+    state.jaegerSourceId = deadJaegers[0];
+    state.jaegerQueue = deadJaegers.slice(1);
     state.phase = "jaeger_shot";
     schedulePersist();
-    return { ok: true, phase: "jaeger_shot", jaegerShot: true, jaegerSourceId: jaegerKilledId };
+    return { ok: true, phase: "jaeger_shot", jaegerShot: true, jaegerSourceId: state.jaegerSourceId };
   }
 
   const nightWinner = checkWinCondition();
@@ -1014,9 +1098,13 @@ export function submitDayAccusation(playerId, targetPlayerId) {
 export function submitDayVote(playerId, targetPlayerId) {
   if (state.phase !== "day" || !state.day) return { ok: false, error: "invalid_phase" };
   if (state.day.status === "accusing") return { ok: false, error: "still_accusing" };
+  // Nach der Auswertung („decided") sind keine Stimmen mehr zulässig – sonst
+  // ließe sich das angezeigte Ergebnis nachträglich verfälschen.
+  if (state.day.status !== "voting") return { ok: false, error: "voting_closed" };
   const p = findPlayer(playerId);
   if (!p || !p.isAlive) return { ok: false, error: "not_allowed" };
   if (p.isHost) return { ok: false, error: "host_does_not_vote" };
+  if (p.idiotRevealed) return { ok: false, error: "idiot_cannot_vote" };
   if (state.day.silencedPlayerId === playerId) return { ok: false, error: "silenced" };
   if (targetPlayerId === null || targetPlayerId === undefined) {
     state.day.votes[playerId] = null;
@@ -1051,6 +1139,7 @@ function countDayVotes() {
   for (const id of candidates) count[id] = 0;
   for (const voterId of Object.keys(votes)) {
     if (state.day.silencedPlayerId === voterId) continue;
+    if (findPlayer(voterId)?.idiotRevealed) continue;
     const targetId = votes[voterId];
     if (targetId && candidates.includes(targetId)) count[targetId] = (count[targetId] || 0) + 1;
   }
@@ -1083,6 +1172,40 @@ function countDayVotes() {
   }
   // Kein Bürgermeister oder hat nicht unter Kandidaten gewählt → Bürgermeisterwahl nötig (oder Zufall bei deaktiviert)
   return { eliminatedId: null, tie: true, needMayorElection: !mayor, tiedWinnerIds: winners };
+}
+
+/**
+ * Wendet eine Tages-Hinrichtung an: Dorfdepp-Begnadigung, Kopfgeld-Sieg,
+ * Liebes-Kaskade und Jäger-Schüsse werden zentral behandelt, damit normale
+ * Auswertung und Zufalls-Gleichstand identisch funktionieren.
+ * @returns {{ type: "none"|"idiot"|"bounty"|"jaeger"|"eliminated", deadJaegers?: string[] }}
+ */
+function applyDayElimination(eliminatedId) {
+  const eliminated = findPlayer(eliminatedId);
+  if (!eliminated?.isAlive) return { type: "none" };
+
+  // Dorfdepp: Das Dorf erkennt seinen Irrtum – der Depp überlebt die Wahl,
+  // verliert aber für den Rest der Partie sein Stimmrecht.
+  if (eliminated.role === "dorfdepp" && !eliminated.idiotRevealed) {
+    eliminated.idiotRevealed = true;
+    addGameLog(state.round, "day", "idiot_revealed", eliminated.name);
+    return { type: "idiot" };
+  }
+
+  eliminated.isAlive = false;
+  state.day.eliminatedId = eliminatedId;
+  addGameLog(state.round, "day", "lynch", eliminated.name);
+
+  if (checkBountyWin(eliminatedId)) return { type: "bounty" };
+
+  const loverId = cascadeLover(eliminatedId, "day");
+  const deadJaegers = [];
+  if (eliminated.role === "jaeger") deadJaegers.push(eliminatedId);
+  if (loverId && findPlayer(loverId)?.role === "jaeger") deadJaegers.push(loverId);
+  if (deadJaegers.length > 0 && hasJaegerTarget()) {
+    return { type: "jaeger", deadJaegers };
+  }
+  return { type: "eliminated" };
 }
 
 /**
@@ -1150,71 +1273,53 @@ export function resolveDayPhase(hostPlayerId) {
     const tied = result.tiedWinnerIds;
     const randomIndex = Math.floor(Math.random() * tied.length);
     const eliminatedId = tied[randomIndex];
-    const eliminated = findPlayer(eliminatedId);
-    if (eliminated?.isAlive) {
-      eliminated.isAlive = false;
-      state.day.eliminatedId = eliminatedId;
-      addGameLog(state.round, "day", "lynch", eliminated.name);
-      if (checkBountyWin(eliminated.playerId)) {
-        state.day.status = "decided";
-        state.day.tieResolution = "random";
-        state.day.runoffCandidates = null;
-        state.phase = "game_end";
-        state.winner = "kopfgeldjaeger";
-        schedulePersist();
-        return { ok: true, decided: true, eliminatedId, winner: "kopfgeldjaeger" };
-      }
-      const loverId = cascadeLover(eliminatedId, "day");
-      if ((eliminated.role === "jaeger" || (loverId && findPlayer(loverId)?.role === "jaeger")) && hasJaegerTarget()) {
-        const jaegerSourceId = eliminated.role === "jaeger" ? eliminatedId : loverId;
-        state.day.status = "decided";
-        state.day.tieResolution = "random";
-        state.day.runoffCandidates = null;
-        state.phase = "jaeger_shot";
-        state.jaegerSourceId = jaegerSourceId;
-        schedulePersist();
-        return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId };
-      }
-    }
     state.day.status = "decided";
     state.day.tieResolution = "random";
     state.day.runoffCandidates = null;
+    const outcome = applyDayElimination(eliminatedId);
+    if (outcome.type === "bounty") {
+      state.phase = "game_end";
+      state.winner = "kopfgeldjaeger";
+      schedulePersist();
+      return { ok: true, decided: true, eliminatedId, winner: "kopfgeldjaeger" };
+    }
+    if (outcome.type === "jaeger") {
+      state.phase = "jaeger_shot";
+      state.jaegerSourceId = outcome.deadJaegers[0];
+      state.jaegerQueue = outcome.deadJaegers.slice(1);
+      schedulePersist();
+      return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId };
+    }
     schedulePersist();
-    return { ok: true, decided: true, eliminatedId };
+    return {
+      ok: true,
+      decided: true,
+      eliminatedId: outcome.type === "idiot" || outcome.type === "none" ? null : eliminatedId,
+      idiotRevealed: outcome.type === "idiot" ? eliminatedId : undefined,
+    };
   }
 
+  let idiotRevealedId;
   if (result.eliminatedId) {
-    const eliminated = findPlayer(result.eliminatedId);
-    if (eliminated?.isAlive) {
-      eliminated.isAlive = false;
-      state.day.eliminatedId = result.eliminatedId;
-      addGameLog(state.round, "day", "lynch", eliminated.name);
-
-      if (checkBountyWin(eliminated.playerId)) {
-        state.day.status = "decided";
-        state.phase = "game_end";
-        state.winner = "kopfgeldjaeger";
-        schedulePersist();
-        return { ok: true, decided: true, eliminatedId: result.eliminatedId, winner: "kopfgeldjaeger" };
-      }
-
-      const loverId = cascadeLover(result.eliminatedId, "day");
-
-      if (eliminated.role === "jaeger" && hasJaegerTarget()) {
-        state.phase = "jaeger_shot";
-        state.jaegerSourceId = result.eliminatedId;
-        schedulePersist();
-        return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId: result.eliminatedId };
-      }
-      if (loverId) {
-        const lover = findPlayer(loverId);
-        if (lover?.role === "jaeger" && hasJaegerTarget()) {
-          state.phase = "jaeger_shot";
-          state.jaegerSourceId = loverId;
-          schedulePersist();
-          return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId: result.eliminatedId };
-        }
-      }
+    const outcome = applyDayElimination(result.eliminatedId);
+    if (outcome.type === "idiot") {
+      idiotRevealedId = result.eliminatedId;
+      result.eliminatedId = null;
+    }
+    if (outcome.type === "bounty") {
+      state.day.status = "decided";
+      state.phase = "game_end";
+      state.winner = "kopfgeldjaeger";
+      schedulePersist();
+      return { ok: true, decided: true, eliminatedId: result.eliminatedId, winner: "kopfgeldjaeger" };
+    }
+    if (outcome.type === "jaeger") {
+      state.day.status = "decided";
+      state.phase = "jaeger_shot";
+      state.jaegerSourceId = outcome.deadJaegers[0];
+      state.jaegerQueue = outcome.deadJaegers.slice(1);
+      schedulePersist();
+      return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId: result.eliminatedId };
     }
   }
 
@@ -1224,14 +1329,14 @@ export function resolveDayPhase(hostPlayerId) {
     state.phase = "game_end";
     state.winner = dayWinner;
     schedulePersist();
-    return { ok: true, decided: true, phase: "game_end", winner: dayWinner };
+    return { ok: true, decided: true, phase: "game_end", winner: dayWinner, eliminatedId: state.day.eliminatedId };
   }
 
   state.day.status = "decided";
   state.day.tieResolution = result.tie ? "mayor_decides" : null;
   state.phase = "result";
   schedulePersist();
-  return { ok: true, decided: true, phase: "result", eliminatedId: result.eliminatedId };
+  return { ok: true, decided: true, phase: "result", eliminatedId: result.eliminatedId, idiotRevealed: idiotRevealedId };
 }
 
 /**
@@ -1247,7 +1352,20 @@ export function submitJaegerKill(hostPlayerId, targetId) {
   addGameLog(state.round, "day", "jaeger_shot", target.name);
   const nightCase = !state.day;
 
-  cascadeLover(targetId, nightCase ? "night" : "day");
+  const loverId = cascadeLover(targetId, nightCase ? "night" : "day");
+
+  // Trifft der Schuss (oder die Liebes-Kaskade) einen weiteren Jäger, reiht
+  // dieser sich für den nächsten Schuss ein – Kettenschüsse sind erlaubt.
+  state.jaegerQueue = state.jaegerQueue || [];
+  if (target.role === "jaeger") state.jaegerQueue.push(targetId);
+  if (loverId && findPlayer(loverId)?.role === "jaeger") state.jaegerQueue.push(loverId);
+
+  if (state.jaegerQueue.length > 0 && hasJaegerTarget()) {
+    state.jaegerSourceId = state.jaegerQueue.shift();
+    schedulePersist();
+    return { ok: true, phase: "jaeger_shot", jaegerShot: true, jaegerKillId: targetId, jaegerSourceId: state.jaegerSourceId };
+  }
+  state.jaegerQueue = [];
 
   const jaegerWinner = checkWinCondition();
   if (jaegerWinner) {
@@ -1422,6 +1540,9 @@ export function removePlayer(playerId) {
 
   if (state.lastProtectedId === playerId) state.lastProtectedId = null;
   if (state.jaegerSourceId === playerId) state.jaegerSourceId = null;
+  if (Array.isArray(state.jaegerQueue)) {
+    state.jaegerQueue = state.jaegerQueue.filter((id) => id !== playerId);
+  }
   ensureHost();
   schedulePersist();
 }
@@ -1480,6 +1601,7 @@ function doResetToLobby() {
   state.winner = null;
   state.round = 0;
   state.jaegerSourceId = null;
+  state.jaegerQueue = [];
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
   state.lastProtectedId = null;
@@ -1491,6 +1613,7 @@ function doResetToLobby() {
     p.lovePartnerId = null;
     p.bountyTargetId = null;
     p.elderUsedLife = false;
+    p.idiotRevealed = false;
   });
 }
 
@@ -1522,9 +1645,11 @@ export function resetState() {
   state.winner = null;
   state.round = 0;
   state.jaegerSourceId = null;
+  state.jaegerQueue = [];
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
   state.lastProtectedId = null;
+  rotateInviteToken();
 }
 
 /**

@@ -11,6 +11,8 @@ import { Server } from "socket.io";
 import { PLAYER_PASSWORD, ADMIN_PASSWORD } from "./constants.js";
 import {
   getState,
+  getPublicState,
+  getInviteToken,
   getPlayerIdBySocket,
   setSocketPlayer,
   removeSocketPlayer,
@@ -45,9 +47,9 @@ import {
   generateReconnectToken,
   removeBan,
   hostKick,
-  getStateForPersistence,
-  getBansForPersistence,
+  getPersistSnapshot,
   loadBansFromPersistence,
+  restoreInviteToken,
   forceUnban,
   resetState,
   resetToLobbyAfterGameEnd,
@@ -113,25 +115,34 @@ app.get("/health", (req, res) => {
   });
 });
 
-/** Broadcast State an alle im Raum (optional nur an einen Socket). */
+/**
+ * Broadcast State an alle im Raum (optional nur an einen Socket).
+ * Sockets ohne zugeordneten Spieler (noch nicht beigetreten) bekommen nur den
+ * minimalen öffentlichen Zustand – keine Namen, Stimmen oder Spieldetails.
+ */
 function broadcastState(socketId = null) {
+  const stateFor = (sockId) => {
+    const playerId = getPlayerIdBySocket(sockId);
+    return playerId ? getState(playerId) : getPublicState();
+  };
   if (socketId) {
-    const playerId = getPlayerIdBySocket(socketId);
-    const forViewer = getState(playerId);
-    io.to(socketId).emit("state", forViewer);
+    io.to(socketId).emit("state", stateFor(socketId));
   } else {
-    // Send customized state to each connected socket
     io.sockets.sockets.forEach((s) => {
-      const playerId = getPlayerIdBySocket(s.id);
-      const forViewer = getState(playerId);
-      s.emit("state", forViewer);
+      s.emit("state", stateFor(s.id));
     });
   }
 }
 
-/** Alle verbundenen Sockets im Raum benachrichtigen. */
+/**
+ * Alle Sockets benachrichtigen, die einem beigetretenen Spieler gehören.
+ * Nicht beigetretene Sockets erhalten keine Spiel-Ereignisse (z. B. Namen
+ * von Nachtopfern) – die gehen nur Mitspielende etwas an.
+ */
 function broadcast(event, data) {
-  io.emit(event, data);
+  io.sockets.sockets.forEach((s) => {
+    if (getPlayerIdBySocket(s.id)) s.emit(event, data);
+  });
 }
 
 /** Einfacher Sliding-Window-Rate-Limiter pro Verbindung. */
@@ -182,6 +193,9 @@ io.on("connection", (socket) => {
 
   const allow = makeLimiter();
 
+  // Join-Maske sofort mit Phase/Spielerzahl versorgen (ohne Spieldetails).
+  socket.emit("state", getPublicState());
+
   /**
    * Registriert einen Event-Handler mit Rate-Limiting und Fehler-Kapselung.
    * So bringt ein einzelner Fehler oder Event-Spam den Server nicht durcheinander.
@@ -215,6 +229,7 @@ io.on("connection", (socket) => {
       const {
         playerName,
         password,
+        inviteToken,
         reconnectToken,
         playerId: clientPlayerId,
         fingerprint,
@@ -281,7 +296,10 @@ io.on("connection", (socket) => {
 
       const trimmedName = playerName.trim().slice(0, 80) || "Unbekannt";
       const isAdmin = passwordsMatch(password, ADMIN_PASSWORD);
-      if (!passwordsMatch(password, PLAYER_PASSWORD) && !isAdmin) {
+      // Beitritt entweder mit Passwort oder mit gültigem Einladungs-Token
+      // (aus dem geteilten Link/QR-Code – funktioniert ohne Passwort).
+      const hasValidInvite = inviteToken && passwordsMatch(inviteToken, getInviteToken());
+      if (!passwordsMatch(password, PLAYER_PASSWORD) && !isAdmin && !hasValidInvite) {
         sendError("wrong_password", "Das Passwort ist nicht korrekt.");
         return;
       }
@@ -653,7 +671,10 @@ io.on("connection", (socket) => {
 // Bans bleiben dagegen über Neustarts hinweg bestehen.
 try {
   const persisted = persistence.load();
-  if (persisted) loadBansFromPersistence(persisted);
+  if (persisted) {
+    loadBansFromPersistence(persisted);
+    restoreInviteToken(persisted.inviteToken);
+  }
 } catch (e) {
   console.warn("Bans laden:", e.message);
 }
@@ -668,7 +689,7 @@ httpServer.listen(PORT, () => {
 function shutdown(signal) {
   console.log(`\n${signal} empfangen – Server wird beendet …`);
   try {
-    persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+    persistence.saveSync(getPersistSnapshot());
   } catch {}
   io.close(() => {
     httpServer.close(() => process.exit(0));
@@ -737,27 +758,27 @@ CLI-Befehle (Enter zum Ausführen):
     if (cmd === "ban" && arg) {
       addBan({ playerId: arg });
       removePlayer(arg);
-      persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      persistence.saveSync(getPersistSnapshot());
       broadcastState();
       console.log("  Spieler gebannt.");
       return;
     }
     if (cmd === "unban" && arg) {
       forceUnban(arg);
-      persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      persistence.saveSync(getPersistSnapshot());
       console.log("  Bann aufgehoben.");
       return;
     }
     if (cmd === "end") {
       endGameNow("village");
-      persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      persistence.saveSync(getPersistSnapshot());
       broadcastState();
       console.log("  Spiel beendet.");
       return;
     }
     if (cmd === "reset") {
       resetState();
-      persistence.saveSync({ state: getStateForPersistence(), bans: getBansForPersistence() });
+      persistence.saveSync(getPersistSnapshot());
       broadcastState();
       console.log("  State zurückgesetzt.");
       return;

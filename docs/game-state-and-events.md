@@ -25,7 +25,7 @@ lobby → mayor_election → night → day → result → (night → day → res
 | `night`          | Nacht mit dynamischen Subphasen (siehe unten). |
 | `day`            | Anklage (`accusing`) → Abstimmung (`voting`) → Entscheidung. |
 | `result`         | Zusammenfassung der Runde; Host startet die nächste. |
-| `jaeger_shot`    | Sonderphase: ausgeschiedener Jäger gibt einen letzten Schuss ab. |
+| `jaeger_shot`    | Sonderphase: ausgeschiedener Jäger gibt einen letzten Schuss ab. Trifft er einen weiteren Jäger, folgt dessen Schuss direkt danach (`jaegerQueue`). |
 | `game_end`       | Spielende; **alle Rollen werden enthüllt**. |
 
 ### Dynamische Nacht-Subphasen
@@ -33,7 +33,7 @@ lobby → mayor_election → night → day → result → (night → day → res
 `getNightSubphases()` baut die Reihenfolge anhand der **lebenden** Rollen:
 
 - `amor` – nur in der ersten Nacht, wenn ein lebender Amor existiert
-- `beschuetzer` – jede Nacht, wenn ein Beschützer lebt (legt den Schutz vor den Werwölfen)
+- `beschuetzer` – jede Nacht, wenn ein Beschützer lebt (legt den Schutz vor den Werwölfen; darf auch aussetzen)
 - `werwolf` – immer (Anker; Host gibt das Opfer ein)
 - `seher` – nur, wenn ein Seher lebt
 - `hexe` – nur, wenn die Hexe lebt **und** noch einen Trank hat
@@ -56,6 +56,8 @@ Dadurch klickt der Host nicht mehr durch leere Phasen.
 | `baecker`         | Dorf    | Schaltet eine Person für den nächsten Tag stumm. |
 | `beschuetzer`     | Dorf    | Schützt jede Nacht eine Person vor den Werwölfen (nicht zweimal dieselbe in Folge). |
 | `aelteste`        | Dorf    | Übersteht den ersten Werwolf-Angriff der Partie (still, ohne Log). Gift, Abstimmung und Jäger-Schuss wirken normal. |
+| `zwilling`        | Dorf    | Zwillinge erkennen einander von Spielbeginn an (gegenseitige Rollensicht), sonst wie Dorfbewohner. |
+| `dorfdepp`        | Dorf    | Überlebt die erste Lynch-Abstimmung: Die Rolle wird öffentlich (`idiotRevealed`), er bleibt am Leben, verliert aber dauerhaft sein Stimmrecht (Tag und Bürgermeisterwahl). |
 | `moderator`       | –       | Der Host; spielt nicht aktiv mit. |
 
 Die Verteilung erfolgt in `roles-engine.js`. `count` kann `"1/3"` (Werwölfe) oder eine feste Zahl
@@ -78,7 +80,10 @@ bleiben erhalten. Der Rest wird mit Dorfbewohnern aufgefüllt.
   **am Spielende**.
 - Nachtaktionen werden so maskiert, dass nur die jeweils berechtigte Rolle ihr Ergebnis sieht
   (z. B. sieht nur der Seher sein Prüf-Ergebnis; die Hexe sieht das Werwolf-Opfer).
+- Zwillinge sehen gegenseitig ihre Rolle; ein enttarnter Dorfdepp (`idiotRevealed`) ist für alle sichtbar.
 - `reconnectToken`, `fingerprint` und `ip` werden **nie** an Clients gesendet.
+- **Nicht beigetretene Sockets** erhalten nur `getPublicState()`: `{ public: true, phase, round, playersCount, rules: { minPlayers, maxPlayers } }` – keine Spielernamen, kein Einladungs-Token, keine Spiel-Events.
+- Das **Einladungs-Token** (`inviteToken`) sehen nur beigetretene Mitglieder. Der Link `/nopassword?t=<token>` erlaubt den Beitritt ohne Passwort; das Token überlebt Server-Neustarts (Persistenz) und rotiert bei jedem Spiel-Reset.
 
 ## Socket-Events
 
@@ -86,7 +91,7 @@ bleiben erhalten. Der Rest wird mit Dorfbewohnern aufgefüllt.
 
 | Event              | Payload | Wer |
 |--------------------|---------|-----|
-| `join`             | `{ playerName, password, playerId?, reconnectToken?, fingerprint? }` | alle |
+| `join`             | `{ playerName, password?, inviteToken?, playerId?, reconnectToken?, fingerprint? }` | alle (Passwort **oder** gültiges Einladungs-Token) |
 | `set_name`         | `{ newName }` | Spieler (wenn erlaubt) |
 | `start_game`       | – | Host/Admin |
 | `restart_game`     | – | Host/Admin (nur nach `game_end`) |

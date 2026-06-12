@@ -554,3 +554,172 @@ test("Bürgermeisterwahl nach Tages-Gleichstand schließt die Spielleitung aus",
   const candidateIds = gs.getState(null).mayorElection.candidateIds;
   assert.equal(candidateIds.includes("host"), false, "die Spielleitung kandidiert nicht");
 });
+
+test("Tagesstimmen werden nach der Auswertung abgelehnt", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  gs.advanceNightPhase("host"); // kein Nachtopfer -> Tag
+
+  gs.submitDayAccusation("p1", "p0");
+  gs.resolveDayPhase("host"); // accusing -> voting
+  gs.submitDayVote("p1", "p0");
+  gs.submitDayVote("p2", "p0");
+  gs.resolveDayPhase("host"); // auswerten -> decided
+
+  // Nach der Auswertung ist die Phase bereits "result" – jede weitere Stimme
+  // muss abgelehnt werden (egal über welchen Guard).
+  const late = gs.submitDayVote("p3", "p0");
+  assert.equal(late.ok, false, "nach der Auswertung sind keine Stimmen mehr zulässig");
+});
+
+test("Admin darf niemanden auf einen vergebenen Namen umbenennen", () => {
+  setupLobby(3);
+  const res = gs.adminSetPlayerName("host", "p0", "P1");
+  assert.equal(res.ok, false);
+  assert.equal(res.error, "name_taken");
+  assert.equal(gs.findPlayer("p0").name, "P0", "Name bleibt unverändert");
+});
+
+test("Dorfdepp überlebt die Abwahl, wird enttarnt und verliert sein Stimmrecht", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfdepp: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const depp = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "dorfdepp");
+  const voters = ids.map((id) => gs.findPlayer(id)).filter((p) => p.playerId !== depp.playerId);
+
+  gs.advanceNightPhase("host"); // kein Nachtopfer -> Tag
+  voters.forEach((v) => gs.submitDayAccusation(v.playerId, depp.playerId));
+  gs.resolveDayPhase("host"); // accusing -> voting
+  voters.forEach((v) => gs.submitDayVote(v.playerId, depp.playerId));
+  const res = gs.resolveDayPhase("host");
+
+  assert.ok(res.ok);
+  assert.equal(res.eliminatedId, null, "der Dorfdepp scheidet nicht aus");
+  assert.equal(gs.findPlayer(depp.playerId).isAlive, true, "der Dorfdepp lebt weiter");
+  assert.equal(gs.findPlayer(depp.playerId).idiotRevealed, true, "der Dorfdepp ist enttarnt");
+
+  // Seine Rolle ist jetzt öffentlich sichtbar.
+  const otherView = gs.getState(voters[0].playerId).players.find((p) => p.playerId === depp.playerId);
+  assert.equal(otherView.role, "dorfdepp", "Enttarnung ist öffentlich");
+  assert.equal(otherView.idiotRevealed, true);
+
+  // Nächster Tag: der Dorfdepp darf nicht mehr abstimmen.
+  gs.advanceFromResult("host"); // -> Nacht
+  gs.advanceNightPhase("host"); // -> Tag
+  const accuse = gs.submitDayAccusation(voters[0].playerId, voters[1].playerId);
+  assert.ok(accuse.ok);
+  gs.resolveDayPhase("host"); // -> voting
+  const deppVote = gs.submitDayVote(depp.playerId, voters[1].playerId);
+  assert.equal(deppVote.ok, false);
+  assert.equal(deppVote.error, "idiot_cannot_vote");
+});
+
+test("Zwillinge erkennen einander, andere sehen nichts", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ zwilling: { count: 2, enabled: true }, dorfbewohner: { count: 1, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const twins = ids.map((id) => gs.findPlayer(id)).filter((p) => p.role === "zwilling");
+  const villager = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "dorfbewohner");
+  assert.equal(twins.length, 2);
+
+  const twinView = gs.getState(twins[0].playerId).players.find((p) => p.playerId === twins[1].playerId);
+  assert.equal(twinView.role, "zwilling", "Zwilling sieht die Rolle des anderen Zwillings");
+
+  const villagerView = gs.getState(villager.playerId).players.find((p) => p.playerId === twins[0].playerId);
+  assert.equal(villagerView.role, undefined, "andere sehen die Zwillings-Rolle nicht");
+});
+
+test("Jäger-Kette: trifft der Schuss einen weiteren Jäger, schießt auch dieser", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({
+      werwolf: { count: 1, enabled: true },
+      jaeger: { count: 2, enabled: true },
+      dorfbewohner: { count: 2, enabled: true },
+    }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3", "p4"];
+  const all = ids.map((id) => gs.findPlayer(id));
+  const wolf = all.find((p) => p.role === "werwolf");
+  const [jaeger1, jaeger2] = all.filter((p) => p.role === "jaeger");
+
+  // Werwolf reißt den ersten Jäger.
+  gs.submitNightAction("host", { targetId: jaeger1.playerId });
+  let r = gs.advanceNightPhase("host");
+  assert.equal(r.phase, "jaeger_shot");
+
+  // Jäger 1 erschießt Jäger 2 -> Jäger 2 darf ebenfalls schießen.
+  r = gs.submitJaegerKill("host", jaeger2.playerId);
+  assert.ok(r.ok);
+  assert.equal(r.phase, "jaeger_shot", "der zweite Jäger reiht sich für den Schuss ein");
+  assert.equal(gs.getState(null).jaegerSourceId, jaeger2.playerId);
+
+  // Jäger 2 erschießt den Werwolf -> das Dorf gewinnt.
+  r = gs.submitJaegerKill("host", wolf.playerId);
+  assert.equal(r.winner, "village");
+  assert.equal(gs.getState(null).winner, "village");
+});
+
+test("Beschützer darf bewusst niemanden schützen (passen)", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ beschuetzer: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const beschuetzer = all.find((p) => p.role === "beschuetzer");
+
+  assert.equal(gs.getState(null).night.subPhase, "beschuetzer");
+  const res = gs.submitNightAction(beschuetzer.playerId, { targetId: null });
+  assert.ok(res.ok);
+  const view = gs.getState(beschuetzer.playerId).night.actions.beschuetzer;
+  assert.equal(view.targetId, null);
+});
+
+test("Einladungs-Token existiert, ist nur für Mitspielende sichtbar und rotiert beim Reset", () => {
+  setupLobby(3);
+  const token = gs.getInviteToken();
+  assert.ok(typeof token === "string" && token.length >= 16);
+
+  const memberView = gs.getState("p0");
+  assert.equal(memberView.inviteToken, token, "Mitspielende sehen das Token");
+  const strangerView = gs.getState(null);
+  assert.equal(strangerView.inviteToken, undefined, "Außenstehende sehen kein Token");
+
+  gs.resetState();
+  assert.notEqual(gs.getInviteToken(), token, "Reset erzeugt ein neues Token");
+});
+
+test("getPublicState enthält keine Spielerdaten", () => {
+  setupLobby(3);
+  const pub = gs.getPublicState();
+  assert.equal(pub.players, undefined, "keine Spielerliste");
+  assert.equal(pub.playersCount, 3, "nur die Anzahl (ohne Host)");
+  assert.equal(pub.phase, "lobby");
+  assert.equal(pub.gameLog, undefined);
+});
+
+test("Enttarnter Dorfdepp darf bei der Bürgermeisterwahl nicht abstimmen", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: true,
+    roles: FULL_ROLES({ dorfdepp: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const depp = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "dorfdepp");
+  // Enttarnung simulieren.
+  depp.idiotRevealed = true;
+  const res = gs.submitMayorVote(depp.playerId, ids.find((id) => id !== depp.playerId));
+  assert.equal(res.ok, false);
+  assert.equal(res.error, "idiot_cannot_vote");
+});

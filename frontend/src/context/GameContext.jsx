@@ -6,6 +6,16 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 
 const GameContext = createContext(null);
 
+/** Einladungs-Token aus dem geteilten Link (/nopassword?t=…) lesen. */
+export function getInviteTokenFromUrl() {
+  try {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("t") || null;
+  } catch {
+    return null;
+  }
+}
+
 export function GameProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
@@ -57,7 +67,14 @@ export function GameProvider({ children }) {
       } else if (stored?.playerName && stored?.password && !isNoPassword) {
         s.emit("join", { playerName: stored.playerName, password: stored.password });
       } else if (isNoPassword && stored?.playerName) {
-        s.emit("join", { playerName: stored.playerName, password: stored?.password || "WOLFGAME" });
+        // Beitritt über den geteilten Einladungslink: Das Token aus der URL
+        // ersetzt das Passwort (das Passwort bleibt so geheim).
+        const inviteToken = getInviteTokenFromUrl();
+        if (inviteToken) {
+          s.emit("join", { playerName: stored.playerName, inviteToken });
+        } else if (stored?.password) {
+          s.emit("join", { playerName: stored.playerName, password: stored.password });
+        }
       }
     });
     s.on("disconnect", () => {
@@ -170,7 +187,7 @@ export function GameProvider({ children }) {
   }, [connect]);
 
   const join = useCallback(
-    (playerName, password) => {
+    (playerName, password, inviteToken = null) => {
       if (!socket) return;
       setJoinError(null);
       const stored = getStoredPlayer();
@@ -178,7 +195,8 @@ export function GameProvider({ children }) {
       setStoredPlayer({ ...stored, playerName: name, password: password || undefined });
       const payload = {
         playerName: name,
-        password,
+        password: password || undefined,
+        inviteToken: inviteToken || undefined,
         playerId: stored?.playerId ?? undefined,
         reconnectToken: stored?.reconnectToken ?? undefined,
       };

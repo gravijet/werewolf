@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useGame } from "../context/GameContext";
+import { useGame, getInviteTokenFromUrl } from "../context/GameContext";
 import { getStoredPlayer, consumeLastJoinError } from "../lib/storage";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
@@ -10,7 +10,11 @@ export function JoinScreen({ lang, setLang }) {
   const { join, joinError, setJoinError, state, me } = useGame();
   const [playerName, setPlayerName] = useState("");
   const [password, setPassword] = useState("");
-  const isNoPassword = typeof window !== "undefined" && window.location.pathname === "/nopassword";
+  const inviteToken = getInviteTokenFromUrl();
+  // Der passwortlose Beitritt funktioniert nur mit gültigem Einladungs-Token
+  // aus dem geteilten Link – ohne Token zeigen wir die normale Maske.
+  const isNoPassword =
+    typeof window !== "undefined" && window.location.pathname === "/nopassword" && Boolean(inviteToken);
   const hasClearedConsumedError = useRef(false);
 
   useEffect(() => {
@@ -44,13 +48,13 @@ export function JoinScreen({ lang, setLang }) {
         setJoinError(t(lang, "noNameProvided"));
         return;
       }
-      join(playerName.trim(), "WOLFGAME");
+      join(playerName.trim(), null, inviteToken);
     } else {
       join(playerName.trim() || "Unbekannt", password);
     }
   };
 
-  const playerCount = state?.players?.filter((p) => !p.isHost).length ?? 0;
+  const playerCount = state?.playersCount ?? state?.players?.filter((p) => !p.isHost).length ?? 0;
 
   return (
     <div

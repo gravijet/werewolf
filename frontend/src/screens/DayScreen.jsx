@@ -42,8 +42,12 @@ export function DayScreen({ lang }) {
 
   const iAmDead = me && !state?.players?.find((p) => p.playerId === me.playerId)?.isAlive;
   const iAmSilenced = day?.silencedPlayerId === me?.playerId;
-  const voterCount = alive.filter((p) => !p.isHost && p.isAlive && p.playerId !== day?.silencedPlayerId).length;
   const myDayPlayer = (state?.players ?? []).find((p) => p.playerId === me?.playerId);
+  const iAmIdiot = Boolean(myDayPlayer?.idiotRevealed);
+  // Stummgeschaltete und enttarnte Dorfdeppen zählen nicht zu den Stimmberechtigten.
+  const voterCount = alive.filter(
+    (p) => !p.isHost && p.isAlive && p.playerId !== day?.silencedPlayerId && !p.idiotRevealed
+  ).length;
   const dayLovePartnerId = myDayPlayer?.lovePartnerId;
   const dayLovePartner = dayLovePartnerId ? (state?.players ?? []).find((p) => p.playerId === dayLovePartnerId) : null;
   const dayBountyTargetId = myDayPlayer?.bountyTargetId;
@@ -145,6 +149,13 @@ export function DayScreen({ lang }) {
           </div>
         )}
 
+        {iAmIdiot && !iAmDead && (
+          <div style={{ padding: "16px", marginBottom: 24, background: "var(--md-sys-color-error-container)", borderRadius: "var(--radius-lg)", color: "var(--md-sys-color-on-error-container)", fontWeight: 600, display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 24, flexShrink: 0 }}>sentiment_very_dissatisfied</span>
+            {t(lang, "idiotRevealedSelfHint")}
+          </div>
+        )}
+
         {!iAmDead && isAccusing && (
           <Card variant="elevated" style={{ padding: 0, marginBottom: 32, borderRadius: "var(--radius-xl)", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", background: "var(--md-sys-color-surface)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -229,7 +240,7 @@ export function DayScreen({ lang }) {
                     const max = Math.max(...Object.values(voteCounts), 1);
                     const isMyVote = myVote === p.playerId;
                     const votingFinished = day?.status === "decided";
-                    const canVote = !me?.isHost && !votingFinished && !iAmSilenced;
+                    const canVote = !me?.isHost && !votingFinished && !iAmSilenced && !iAmIdiot;
                     return (
                       <button
                         key={p.playerId}
@@ -250,6 +261,11 @@ export function DayScreen({ lang }) {
                       >
                         <Avatar name={p.name} size={52} style={{ margin: "0 auto 12px" }} />
                         <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px" }}>{p.name}</p>
+                        {p.idiotRevealed && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "var(--md-sys-color-error-container)", color: "var(--md-sys-color-on-error-container)" }}>
+                            {t(lang, "idiotRevealedBadge")}
+                          </span>
+                        )}
                         {votingFinished && (
                           <div style={{ marginTop: 8 }}>
                             <div style={{ width: "100%", height: 6, background: "var(--md-sys-color-surface-variant)", borderRadius: 6, overflow: "hidden", marginBottom: 4 }}>
@@ -263,7 +279,7 @@ export function DayScreen({ lang }) {
                     );
                   })}
                 </div>
-                {!me?.isHost && day?.status !== "decided" && !iAmSilenced && candidates.length > 0 && (
+                {!me?.isHost && day?.status !== "decided" && !iAmSilenced && !iAmIdiot && candidates.length > 0 && (
                   <div style={{ padding: "0 16px 16px" }}>
                     <Button variant="outlined" fullWidth onClick={() => emit("day_vote", { targetPlayerId: null })} style={{ border: `2px solid ${myVote === null ? "var(--md-sys-color-primary)" : "var(--md-sys-color-outline-variant)"}` }}>
                       {t(lang, "dayAbstain")}

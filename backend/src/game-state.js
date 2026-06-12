@@ -212,10 +212,13 @@ export function getState(viewerPlayerId = null) {
     if (!viewer?.isHost && !viewer?.isAdmin) {
       const rawActions = state.night?.actions || {};
       const isBlinzelPeeking = viewer?.role === "blinzelmaedchen" && outState.night?.subPhase === "werwolf";
+      // Die Hexe erfährt das Werwolf-Opfer erst in ihrer eigenen Subphase –
+      // nicht schon live, während die Werwölfe noch wählen.
+      const isHexeTurn = viewer?.role === "hexe" && outState.night?.subPhase === "hexe";
       outState.night.actions = {
         werwolf: {
           targetId:
-            viewer?.role === "werwolf" || viewer?.role === "hexe"
+            viewer?.role === "werwolf" || isHexeTurn
               ? rawActions.werwolf?.targetId
               : null,
           werwolfIds: isBlinzelPeeking
@@ -253,6 +256,14 @@ export function getState(viewerPlayerId = null) {
   // Spielleitung) wissen – sonst könnten alle seine Wahl mitlesen.
   if (!viewer?.isHost && !viewer?.isAdmin && viewer?.role !== "beschuetzer") {
     outState.lastProtectedId = null;
+  }
+
+  // Ob die Hexe ihre Tränke noch hat, ist strategisches Geheimwissen –
+  // insbesondere die Werwölfe sollen nicht ablesen können, ob der Heiltrank
+  // noch droht.
+  if (!viewer?.isHost && !viewer?.isAdmin && viewer?.role !== "hexe") {
+    outState.witchUsedHeal = null;
+    outState.witchUsedPoison = null;
   }
 
   // Einladungs-Token nur an Personen geben, die bereits im Raum sind.
@@ -547,6 +558,9 @@ export function adminSetRules(adminPlayerId, newRules) {
     };
     if ("minPlayers" in newRules) merged.minPlayers = clampInt(newRules.minPlayers, 3, MAX_PLAYERS, merged.minPlayers);
     if ("maxPlayers" in newRules) merged.maxPlayers = clampInt(newRules.maxPlayers, merged.minPlayers, MAX_PLAYERS, merged.maxPlayers);
+    // Konsistenz erzwingen: minPlayers > maxPlayers würde jede Runde
+    // unstartbar machen (Beitritt capped bei max, Start verlangt min).
+    if (merged.maxPlayers < merged.minPlayers) merged.maxPlayers = merged.minPlayers;
     if ("voteDurationSeconds" in newRules)
       merged.voteDurationSeconds = clampInt(newRules.voteDurationSeconds, 30, 900, merged.voteDurationSeconds);
     if ("mayorElectionEnabled" in newRules) merged.mayorElectionEnabled = Boolean(newRules.mayorElectionEnabled);
@@ -703,6 +717,7 @@ export function finishMayorElection(hostPlayerId) {
     if (state.day?.pendingTieResolution) {
       state.day.pendingTieResolution = false;
       state.phase = "day";
+      state.day.votingStartedAt = new Date().toISOString();
       schedulePersist();
       return { ok: true, backToDay: true };
     }
@@ -841,6 +856,7 @@ export function hostSetMayor(hostPlayerId, mayorPlayerId) {
   if (state.day?.pendingTieResolution) {
     state.day.pendingTieResolution = false;
     state.phase = "day";
+    state.day.votingStartedAt = new Date().toISOString();
     schedulePersist();
     return { ok: true, phase: "day", mayorId: mayorPlayerId };
   }
@@ -967,6 +983,9 @@ export function submitNightAction(playerId, payload) {
     return { ok: true };
   }
   if (p.role === "seher" && sub === "seher") {
+    // Pro Nacht genau EIN Blick: Sonst könnte ein manipulierter Client durch
+    // wiederholte night_action-Events nacheinander alle Spieler prüfen.
+    if (actions.seher?.targetId) return { ok: false, error: "already_inspected" };
     const targetId = payload?.targetId ?? payload?.targetPlayerId;
     const targetPlayer = findPlayer(targetId);
     // Die Spielleitung (Moderator) ist kein Mitspieler und darf nicht geprüft werden.
@@ -1250,6 +1269,9 @@ export function submitDayAccusation(playerId, targetPlayerId) {
   const p = findPlayer(playerId);
   if (!p || !p.isAlive) return { ok: false, error: "not_allowed" };
   if (p.isHost) return { ok: false, error: "host_does_not_vote" };
+  // Der enttarnte Dorfdepp hat sein Stimmrecht verloren – das schließt auch
+  // Anklagen ein (sonst stimmte der Anklagen-Zähler x/y der UI nie).
+  if (p.idiotRevealed) return { ok: false, error: "idiot_cannot_vote" };
   if (state.day.silencedPlayerId === playerId) return { ok: false, error: "silenced" };
   if (targetPlayerId === null || targetPlayerId === undefined) {
     state.day.accusations[playerId] = null;
@@ -1450,6 +1472,8 @@ export function resolveDayPhase(hostPlayerId) {
     state.day.runoffCandidates = result.runoff;
     state.day.votes = {};
     state.day.tieResolution = "runoff";
+    // Die Stichwahl bekommt frische Bedenkzeit – sonst liefe der alte Countdown weiter.
+    state.day.votingStartedAt = new Date().toISOString();
     schedulePersist();
     return { ok: true, runoff: true };
   }
@@ -1757,13 +1781,6 @@ export function hostKick(actorPlayerId, targetPlayerId) {
   removePlayer(targetPlayerId);
   schedulePersist();
   return { ok: true };
-}
-
-/**
- * Generiert ein neues Reconnect-Token.
- */
-export function generateReconnectToken() {
-  return randomUUID() + "-" + Math.random().toString(36).slice(2, 12);
 }
 
 /**

@@ -5,7 +5,7 @@ React (Vite) + Socket.io-Client. Mobile-First, Material Design, i18n (DE/EN), Ho
 ## Voraussetzungen
 
 - Node.js 18+
-- Backend unter `http://localhost:3000` (oder `VITE_API_URL` setzen)
+- Backend unter `http://localhost:5172` (oder `VITE_API_URL` setzen)
 
 ## Installation
 
@@ -22,7 +22,7 @@ npm install
 npm run dev
 ```
 
-Öffne http://localhost:5173. Der Vite-Proxy leitet `/socket.io` und `/health` an http://localhost:3000 weiter. Läuft das Backend nicht, kann die Konsole Proxy-Fehler anzeigen – dann zuerst Backend starten.
+Öffne http://localhost:5173. Der Vite-Proxy leitet `/socket.io` und `/health` an http://localhost:5172 weiter. Läuft das Backend nicht, kann die Konsole Proxy-Fehler anzeigen – dann zuerst Backend starten.
 
 ## Build
 

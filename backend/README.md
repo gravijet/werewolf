@@ -25,7 +25,7 @@ Dev mit Auto-Reload:
 npm run dev
 ```
 
-Server läuft auf `http://localhost:3000` (oder `PORT` aus Umgebung).
+Server läuft auf `http://localhost:5172` (oder `PORT` aus Umgebung).
 
 ## Tests
 

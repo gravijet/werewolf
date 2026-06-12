@@ -60,7 +60,7 @@ Dadurch klickt der Host nicht mehr durch leere Phasen.
 | `beschuetzer`     | Dorf    | Schützt jede Nacht eine Person vor den Werwölfen (nicht zweimal dieselbe in Folge). |
 | `aelteste`        | Dorf    | Übersteht den ersten Werwolf-Angriff der Partie (still, ohne Log). Gift, Abstimmung und Jäger-Schuss wirken normal. |
 | `zwilling`        | Dorf    | Zwillinge erkennen einander von Spielbeginn an (gegenseitige Rollensicht), sonst wie Dorfbewohner. |
-| `dorfdepp`        | Dorf    | Überlebt die erste Lynch-Abstimmung: Die Rolle wird öffentlich (`idiotRevealed`), er bleibt am Leben, verliert aber dauerhaft sein Stimmrecht (Tag und Bürgermeisterwahl). |
+| `dorfdepp`        | Dorf    | Überlebt die erste Lynch-Abstimmung: Die Rolle wird öffentlich (`idiotRevealed`), er bleibt am Leben, verliert aber dauerhaft sein Stimmrecht (Anklage, Tagesabstimmung und Bürgermeisterwahl). |
 | `suendenbock`     | Dorf    | Endet die erste Abstimmungsrunde im Gleichstand, stirbt der Sündenbock anstelle einer Stichwahl (`tieResolution: "scapegoat"`, Log `scapegoat_death`). Ist er bereits tot, läuft die normale Stichwahl. |
 | `wildeskind`      | Dorf → Werwolf | Wählt in Nacht 1 ein Vorbild (`roleModelId`). Stirbt oder verschwindet das Vorbild, wird das Kind **still** zum `werwolf` (`wasWildChild: true`); die Verwandlung greift vor jeder Siegprüfung. |
 | `moderator`       | –       | Der Host; spielt nicht aktiv mit. |
@@ -84,7 +84,11 @@ bleiben erhalten. Der Rest wird mit Dorfbewohnern aufgefüllt.
 - Eigene Rolle immer sichtbar; fremde Rollen nur für Tote (falls Regel aktiv), den Moderator oder
   **am Spielende**.
 - Nachtaktionen werden so maskiert, dass nur die jeweils berechtigte Rolle ihr Ergebnis sieht
-  (z. B. sieht nur der Seher sein Prüf-Ergebnis; die Hexe sieht das Werwolf-Opfer).
+  (z. B. sieht nur der Seher sein Prüf-Ergebnis; die Hexe sieht das Werwolf-Opfer **erst in
+  ihrer eigenen Subphase**). Der Seher darf pro Nacht nur **eine** Person prüfen –
+  Wiederholungen lehnt der Server ab (`already_inspected`).
+- Der Trank-Status der Hexe (`witchUsedHeal`/`witchUsedPoison`) ist nur für die Hexe selbst
+  und die Spielleitung sichtbar.
 - Zwillinge sehen gegenseitig ihre Rolle; ein enttarnter Dorfdepp (`idiotRevealed`) ist für alle sichtbar.
 - Das Vorbild des Wilden Kindes (`roleModelId`) sehen nur das Kind selbst und die Spielleitung; `wasWildChild` wird erst bei der Auflösung öffentlich.
 - `reconnectToken`, `fingerprint` und `ip` werden **nie** an Clients gesendet.
@@ -141,3 +145,15 @@ versehen. `join` ist strenger limitiert (Schutz gegen Passwort-Raten).
 Der Client speichert `playerId` + `reconnectToken` (localStorage/Cookie). Beim erneuten Verbinden
 wird `join` mit diesen Werten gesendet; der Server ordnet die bestehende Identität zu.
 Namens-Kollisionen werden **nicht** als Reconnect behandelt.
+
+Mehrere Tabs/Geräte desselben Spielers sind erlaubt: Als „getrennt" gilt ein Spieler erst,
+wenn seine **letzte** Verbindung schließt.
+
+## Verhalten nach Spielende
+
+Während `game_end` bleibt der Auflösungs-Screen für alle stehen:
+
+- **Reconnects** (z. B. Seite neu laden) kehren auf den Endscreen zurück und setzen nichts zurück.
+- Erst ein **authentifizierter Neu-Beitritt** (gültiges Passwort oder Einladungs-Token) oder
+  `restart_game` durch Host/Admin öffnet wieder die Lobby.
+- Unauthentifizierte Sockets können den Zustand nicht verändern.

@@ -935,3 +935,105 @@ test("Enttarnter Dorfdepp darf bei der Bürgermeisterwahl nicht abstimmen", () =
   assert.equal(res.ok, false);
   assert.equal(res.error, "idiot_cannot_vote");
 });
+
+test("Seher darf pro Nacht nur eine Person prüfen", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ seher: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const seher = all.find((p) => p.role === "seher");
+  const [v1, v2] = all.filter((p) => p.role === "dorfbewohner");
+
+  gs.advanceNightPhase("host"); // werwolf -> seher
+  const first = gs.submitNightAction(seher.playerId, { targetId: v1.playerId });
+  assert.ok(first.ok);
+  const second = gs.submitNightAction(seher.playerId, { targetId: v2.playerId });
+  assert.equal(second.ok, false);
+  assert.equal(second.error, "already_inspected");
+  assert.equal(gs.getState("host").night.actions.seher.targetId, v1.playerId, "erste Wahl bleibt bestehen");
+});
+
+test("Enttarnter Dorfdepp darf tagsüber nicht anklagen", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfdepp: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const depp = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "dorfdepp");
+  depp.idiotRevealed = true;
+
+  gs.advanceNightPhase("host"); // Nacht ohne Opfer -> Tag
+  assert.equal(gs.getState(null).phase, "day");
+  const res = gs.submitDayAccusation(depp.playerId, ids.find((id) => id !== depp.playerId));
+  assert.equal(res.ok, false);
+  assert.equal(res.error, "idiot_cannot_vote");
+});
+
+test("Hexen-Trank-Status ist für Mitspieler maskiert, für Hexe und Host sichtbar", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ hexe: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const hexe = all.find((p) => p.role === "hexe");
+  const villager = all.find((p) => p.role === "dorfbewohner");
+
+  assert.equal(gs.getState(villager.playerId).witchUsedHeal, null, "Dorfbewohner sieht Trank-Status nicht");
+  assert.equal(gs.getState(villager.playerId).witchUsedPoison, null);
+  assert.equal(gs.getState(hexe.playerId).witchUsedHeal, false, "Hexe sieht ihren eigenen Status");
+  assert.equal(gs.getState("host").witchUsedHeal, false, "Host sieht den Status");
+});
+
+test("Hexe sieht das Werwolf-Opfer erst in ihrer eigenen Subphase", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ hexe: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const hexe = all.find((p) => p.role === "hexe");
+  const villager = all.find((p) => p.role === "dorfbewohner");
+
+  // Werwolf-Subphase: Host trägt das Opfer ein – Hexe darf es noch nicht sehen.
+  gs.submitNightAction("host", { targetId: villager.playerId });
+  assert.equal(gs.getState(hexe.playerId).night.actions.werwolf.targetId, null, "vor ihrer Phase maskiert");
+
+  gs.advanceNightPhase("host"); // werwolf -> hexe
+  assert.equal(gs.getState(null).night.subPhase, "hexe");
+  assert.equal(gs.getState(hexe.playerId).night.actions.werwolf.targetId, villager.playerId, "in ihrer Phase sichtbar");
+});
+
+test("adminSetRules: minPlayers kann maxPlayers nicht übersteigen", () => {
+  setupLobby(3);
+  gs.adminSetRules("host", { maxPlayers: 5 });
+  gs.adminSetRules("host", { minPlayers: 10 });
+  const rules = gs.getState(null).rules;
+  assert.ok(rules.maxPlayers >= rules.minPlayers, "max wird auf min angehoben");
+});
+
+test("Stichwahl startet die Bedenkzeit neu", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  gs.advanceNightPhase("host"); // Nacht ohne Opfer -> Tag
+
+  // Zwei Lager klagen zwei verschiedene Personen an -> Gleichstand in der Abstimmung.
+  gs.submitDayAccusation("p0", "p2");
+  gs.submitDayAccusation("p1", "p3");
+  gs.resolveDayPhase("host"); // accusing -> voting
+  const firstStart = gs.getState(null).day.votingStartedAt;
+  gs.submitDayVote("p0", "p2");
+  gs.submitDayVote("p1", "p3");
+  const res = gs.resolveDayPhase("host");
+  assert.ok(res.runoff, "Gleichstand führt zur Stichwahl");
+  const secondStart = gs.getState(null).day.votingStartedAt;
+  assert.ok(secondStart, "Stichwahl hat einen Startzeitpunkt");
+  assert.ok(new Date(secondStart) >= new Date(firstStart), "Timer wurde neu gesetzt");
+});

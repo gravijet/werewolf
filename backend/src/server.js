@@ -20,7 +20,6 @@ import {
   addBan,
   addPlayer,
   ensureHost,
-  setPlayerConnected,
   setPlayerDisconnected,
   isJoinLocked,
   findPlayer,
@@ -44,7 +43,6 @@ import {
   hostSetMayor,
   hostSkipPhase,
   removePlayer,
-  generateReconnectToken,
   removeBan,
   hostKick,
   getPersistSnapshot,
@@ -249,10 +247,6 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (getState(null).phase === "game_end") {
-        resetToLobbyAfterGameEnd();
-      }
-
       if (isBanned({ playerId: clientPlayerId, fingerprint, ip })) {
         sendError("banned", "Du bist für diesen Raum gesperrt.");
         return;
@@ -261,7 +255,10 @@ io.on("connection", (socket) => {
       const isReconnect =
         clientPlayerId && reconnectToken && findPlayerByReconnect(clientPlayerId, reconnectToken);
 
-      if (isJoinLocked() && !isReconnect) {
+      // Nach Spielende darf ein authentifizierter Neu-Beitritt die Lobby
+      // öffnen (Reset weiter unten) – nur mitten in einer laufenden Runde
+      // ist der Beitritt wirklich gesperrt.
+      if (isJoinLocked() && getState(null).phase !== "game_end" && !isReconnect) {
         sendError("game_started", "Die Runde läuft bereits.");
         return;
       }
@@ -305,6 +302,14 @@ io.on("connection", (socket) => {
       if (!passwordsMatch(password, PLAYER_PASSWORD) && !isAdmin && !hasValidInvite) {
         sendError("wrong_password", "Das Passwort ist nicht korrekt.");
         return;
+      }
+
+      // Erst NACH erfolgreicher Authentifizierung darf ein neuer Beitritt das
+      // beendete Spiel in die Lobby zurücksetzen. Vorher stand dieser Reset am
+      // Handler-Anfang – jeder anonyme Socket (oder ein simpler Reload eines
+      // Mitspielers) konnte damit allen den Endscreen wegziehen.
+      if (getState(null).phase === "game_end") {
+        resetToLobbyAfterGameEnd();
       }
 
       // Namens-Kollisionen dürfen nicht als Reconnect behandelt werden.
@@ -652,18 +657,26 @@ io.on("connection", (socket) => {
   socket.on("disconnect", (reason) => {
     try {
       const playerId = getPlayerIdBySocket(socket.id);
-      if (playerId) {
-        setPlayerDisconnected(playerId);
-        removeSocketPlayer(socket.id);
+      if (!playerId) return;
+      removeSocketPlayer(socket.id);
 
-        // In der Lobby: Spieler vollständig entfernen.
-        if (!isJoinLocked()) {
-          removePlayer(playerId);
-        }
+      // Mehrere Tabs/Geräte können auf denselben Spieler zeigen – erst wenn
+      // die letzte Verbindung weg ist, gilt der Spieler als getrennt.
+      let stillConnected = false;
+      io.sockets.sockets.forEach((s) => {
+        if (getPlayerIdBySocket(s.id) === playerId) stillConnected = true;
+      });
+      if (stillConnected) return;
 
-        broadcast("player_left", { playerId });
-        broadcastState();
+      setPlayerDisconnected(playerId);
+
+      // In der Lobby: Spieler vollständig entfernen.
+      if (!isJoinLocked()) {
+        removePlayer(playerId);
       }
+
+      broadcast("player_left", { playerId });
+      broadcastState();
     } catch (e) {
       console.error("[socket:disconnect]", e);
     }
@@ -683,7 +696,7 @@ try {
   console.warn("Bans laden:", e.message);
 }
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 5172;
 httpServer.listen(PORT, () => {
   console.log(`Werwolf Backend läuft auf http://localhost:${PORT}`);
   startCli().catch((e) => console.warn("CLI:", e.message));
@@ -744,23 +757,23 @@ CLI-Befehle (Enter zum Ausführen):
       return;
     }
     if (cmd === "kick" && arg) {
-      const s = getState(null);
-      const actor = s.players[0]?.playerId;
-      if (!actor) {
-        console.log("  Kein Spieler im Raum – Kick nicht möglich (nutze reset).");
+      if (!findPlayer(arg)) {
+        console.log("  Spieler nicht gefunden.");
         return;
       }
-      const result = hostKick(actor, arg);
-      if (result.ok) {
-        console.log("  Spieler gekickt.");
-        broadcastState();
-      } else {
-        console.log("  Fehler:", result.error);
-      }
+      removePlayer(arg);
+      broadcastState();
+      console.log("  Spieler gekickt.");
       return;
     }
     if (cmd === "ban" && arg) {
-      addBan({ playerId: arg });
+      const target = findPlayer(arg);
+      addBan({
+        playerId: arg,
+        name: target?.name,
+        fingerprint: target?.fingerprint,
+        ip: target?.ip,
+      });
       removePlayer(arg);
       persistence.saveSync(getPersistSnapshot());
       broadcastState();

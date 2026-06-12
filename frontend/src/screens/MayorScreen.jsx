@@ -71,6 +71,17 @@ export function MayorScreen({ lang }) {
             </div>
           </Card>
         )}
+        {election?.status === "decided" && (() => {
+          const mayor = players.find((p) => p.isMayor);
+          return (
+            <Card className="pop-in" style={{ padding: "18px 20px", marginBottom: 20, background: "var(--md-sys-color-tertiary-container)", display: "flex", alignItems: "center", gap: 14 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 30, color: "var(--md-sys-color-tertiary)" }}>military_tech</span>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "var(--md-sys-color-on-tertiary-container)" }}>
+                {mayor ? `${mayor.name} · ${t(lang, "mayor")}` : `${t(lang, "mayor")}: ${t(lang, "noOne")}`}
+              </div>
+            </Card>
+          );
+        })()}
         <Card variant="elevated" style={{ padding: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", marginBottom: 32 }}>
           <div
             style={{
@@ -126,33 +137,28 @@ export function MayorScreen({ lang }) {
                 <Avatar name={p.name} size={52} />
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 16, fontWeight: 700, color: isVoted ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface)", margin: "0 0 8px", letterSpacing: "-0.01em" }}>{p.name}</p>
-                  
-                  {true && (
-                    <>
-                      <div
-                        style={{
-                          width: "100%",
-                          height: 8,
-                          background: isVoted ? "rgba(0,0,0,0.1)" : "var(--md-sys-color-surface-variant)",
-                          borderRadius: 8,
-                          overflow: "hidden"
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${max > 0 ? (count / max) * 100 : 0}%`,
-                            height: "100%",
-                            borderRadius: 8,
-                            background: "var(--md-sys-color-primary)",
-                            transition: "width 0.4s cubic-bezier(0.2, 0, 0, 1)",
-                          }}
-                        />
-                      </div>
-                      <p style={{ fontSize: 13, color: isVoted ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface-variant)", marginTop: 6, fontWeight: 600, opacity: 0.8 }}>
-                        {count} {t(lang, "votes")}
-                      </p>
-                    </>
-                  )}
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 8,
+                      background: isVoted ? "rgba(0,0,0,0.1)" : "var(--md-sys-color-surface-variant)",
+                      borderRadius: 8,
+                      overflow: "hidden"
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${max > 0 ? (count / max) * 100 : 0}%`,
+                        height: "100%",
+                        borderRadius: 8,
+                        background: "var(--md-sys-color-primary)",
+                        transition: "width 0.4s cubic-bezier(0.2, 0, 0, 1)",
+                      }}
+                    />
+                  </div>
+                  <p style={{ fontSize: 13, color: isVoted ? "var(--md-sys-color-on-primary-container)" : "var(--md-sys-color-on-surface-variant)", marginTop: 6, fontWeight: 600, opacity: 0.8 }}>
+                    {count} {t(lang, "votes")}
+                  </p>
                 </div>
                 {isVoted && (
                   <div style={{ color: "var(--md-sys-color-primary)", display: "flex" }}>
@@ -216,33 +222,27 @@ export function MayorScreen({ lang }) {
           <Button
             variant="filled"
             fullWidth
-            onClick={() => emit("mayor_phase_next")}
+            onClick={() => {
+              // Fehlen noch Stimmen, erst rückfragen – versehentliches
+              // Auswerten würde die Wahl sonst vorzeitig beenden.
+              if (election?.status === "voting" && totalVotes < voterCount) {
+                setShowConfirm(true);
+              } else {
+                emit("mayor_phase_next");
+              }
+            }}
             style={{ padding: "16px", fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}
           >
-            {t(lang, "evaluateNow")}
+            {election?.status === "decided" ? t(lang, "nextPhase") : t(lang, "evaluateNow")}
           </Button>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Button 
-              variant="tonal" 
-              onClick={() => setShowLeaveConfirm(true)}
-              style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15 }}
-            >
-              {t(lang, "leaveRound")}
-            </Button>
-            <Button 
-              variant="outlined"
-              style={{ flex: 1, minWidth: 140, padding: "14px", fontSize: 15 }}
-              onClick={() => {
-                if (totalVotes < voterCount) {
-                  setShowConfirm(true);
-                } else {
-                  emit("mayor_phase_next");
-                }
-              }}
-            >
-              {t(lang, "showResultNow")}
-            </Button>
-          </div>
+          <Button
+            variant="tonal"
+            fullWidth
+            onClick={() => setShowLeaveConfirm(true)}
+            style={{ padding: "14px", fontSize: 15 }}
+          >
+            {t(lang, "leaveRound")}
+          </Button>
         </footer>
       )}
 

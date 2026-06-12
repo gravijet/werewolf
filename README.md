@@ -21,7 +21,7 @@ npm install
 npm start
 ```
 
-Backend läuft auf **http://localhost:3000**.
+Backend läuft auf **http://localhost:5172**.
 
 ### 2. Frontend starten
 
@@ -44,7 +44,7 @@ Mehrere Tabs/Geräte mit dem gleichen Frontend-URL nutzen; ein Host startet das 
 
 ### Kurz prüfen, ob alles läuft
 
-1. **Backend:** Im Ordner `backend` → `npm install` → `npm start`. Im Browser **http://localhost:3000/health** öffnen → es erscheint `{"ok":true,"service":"werwolf-service"}`.
+1. **Backend:** Im Ordner `backend` → `npm install` → `npm start`. Im Browser **http://localhost:5172/health** öffnen → es erscheint `{"ok":true,"service":"werwolf-service"}`.
 2. **Frontend:** Im Ordner `frontend` → `npm install` → `npm run dev`. **http://localhost:5173** öffnen → Join-Maske mit Name/Passwort erscheint.
 3. **Spielablauf:** Mit Passwort `WOLFGAME` beitreten → Lobby. In weiteren Tabs erneut beitreten → weitere Spieler sichtbar. Erster Tab ist Host → „Spiel starten“ (ab 3 Mitspielern möglich; der Host zählt als Spielleitung nicht mit).
 
@@ -83,7 +83,7 @@ Werwolf/
 
 | Umgebung      | Backend                    | Frontend              |
 |---------------|----------------------------|------------------------|
-| **Lokal (Dev)** | `PORT=3000` (optional)     | nicht nötig (Proxy)   |
+| **Lokal (Dev)** | `PORT=5172` (optional)     | nicht nötig (Proxy)   |
 | **Produktion** | `PORT`, `PLAYER_PASSWORD`, `ADMIN_PASSWORD` | `VITE_API_URL` = Backend-URL |
 
 Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

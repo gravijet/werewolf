@@ -50,7 +50,15 @@ export function JoinScreen({ lang, setLang }) {
       }
       join(playerName.trim(), null, inviteToken);
     } else {
-      join(playerName.trim() || "Unbekannt", password);
+      if (!playerName.trim()) {
+        setJoinError(t(lang, "noNameProvided"));
+        return;
+      }
+      if (!password.trim()) {
+        setJoinError(t(lang, "noPasswordProvided"));
+        return;
+      }
+      join(playerName.trim(), password);
     }
   };
 

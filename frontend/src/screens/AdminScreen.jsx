@@ -126,7 +126,7 @@ export function AdminScreen({ lang, onClose }) {
           type="button"
           onClick={onClose}
           className="md-state-layer"
-          aria-label={lang === "de" ? t(lang, "closeLabel") : "Close"}
+          aria-label={t(lang, "closeLabel")}
           style={{
             width: 48,
             height: 48,

@@ -65,6 +65,11 @@ export function NightScreen({ lang }) {
   const seherResultPlayer = seherResultId ? (state?.players ?? []).find(p => p.playerId === seherResultId) : null;
   const isTargetEvil = actions.seher?.isTargetEvil;
   const exactRole = actions.seher?.exactRole;
+  // Das Seher-Ergebnis bleibt die ganze Nacht sichtbar – auch nachdem der Host
+  // die Subphase weitergeschaltet hat (sonst müsste der Seher es sich in
+  // Sekunden merken).
+  const seherDone = myRole === "seher" && Boolean(seherResultPlayer);
+  const showDoneCard = (canAct && hasActed) || seherDone;
 
   return (
     <div
@@ -541,7 +546,7 @@ export function NightScreen({ lang }) {
           </Card>
         )}
 
-        {canAct && hasActed && (
+        {showDoneCard && (
           <div
             style={{
               padding: "24px",

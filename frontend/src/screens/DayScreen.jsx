@@ -171,7 +171,7 @@ export function DayScreen({ lang }) {
             <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               {candidates.map((p) => {
                 const isMyAccusation = myAccusation === p.playerId;
-                const canAccuse = !me?.isHost && !iAmSilenced;
+                const canAccuse = !me?.isHost && !iAmSilenced && !iAmIdiot;
                 return (
                   <button
                     key={p.playerId}
@@ -195,7 +195,7 @@ export function DayScreen({ lang }) {
                 );
               })}
             </div>
-            {!me?.isHost && !iAmSilenced && (
+            {!me?.isHost && !iAmSilenced && !iAmIdiot && (
               <div style={{ padding: "0 16px 16px" }}>
                 <Button variant="outlined" fullWidth onClick={() => emit("day_accuse", { targetPlayerId: null })} style={{ border: `2px solid ${myAccusation === null ? "var(--md-sys-color-primary)" : "var(--md-sys-color-outline-variant)"}` }}>
                   {t(lang, "dayAccuseNobody")}

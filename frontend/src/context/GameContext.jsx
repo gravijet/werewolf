@@ -143,11 +143,9 @@ export function GameProvider({ children }) {
         return;
       }
       
-      // If we tried to rejoin but the game started and token is invalid, we should not loop.
-      const isNoPassword = typeof window !== "undefined" && window.location.pathname === "/nopassword";
+      // Reconnect-Identität verwerfen, Name/Passwort für den nächsten Versuch behalten.
       const stored = getStoredPlayer();
       if (stored) {
-        // We only clear the reconnect token and ID, but keep the name and password so they can try again later
         setStoredPlayer({
           ...stored,
           playerId: null,
@@ -156,7 +154,9 @@ export function GameProvider({ children }) {
       }
       setMe(null);
       setJoinError(payload.message || code);
-      s.disconnect();
+      // Socket bewusst verbunden lassen: So bleibt die Live-Spielerzahl auf der
+      // Join-Maske aktuell, und ein erneuter Versuch löst keinen doppelten
+      // Auto-Join über den connect-Handler aus.
     });
     s.on("error", (payload) => setError(payload.message || payload.code));
     s.on("player_updated", (payload) => {
@@ -193,17 +193,21 @@ export function GameProvider({ children }) {
       const stored = getStoredPlayer();
       const name = (playerName || "").trim() || "Unbekannt";
       setStoredPlayer({ ...stored, playerName: name, password: password || undefined });
-      const payload = {
+      if (!socket.connected) {
+        // Kein emit auf den getrennten Socket: Socket.io würde ihn puffern UND
+        // der connect-Handler würde zusätzlich auto-joinen – der doppelte Join
+        // endete dann in einem falschen "name_taken". Die Zugangsdaten stehen
+        // bereits im Storage, der connect-Handler übernimmt den Beitritt.
+        socket.connect();
+        return;
+      }
+      socket.emit("join", {
         playerName: name,
         password: password || undefined,
         inviteToken: inviteToken || undefined,
         playerId: stored?.playerId ?? undefined,
         reconnectToken: stored?.reconnectToken ?? undefined,
-      };
-      if (!socket.connected) {
-        socket.connect();
-      }
-      socket.emit("join", payload);
+      });
     },
     [socket]
   );
@@ -238,8 +242,12 @@ export function GameProvider({ children }) {
 
   const stored = typeof window !== "undefined" ? getStoredPlayer() : {};
   const storedBanKick = typeof window !== "undefined" ? getLastJoinError() : null;
+  // Sobald ein Join-Fehler vorliegt, ist der Wiederverbindungs-Versuch
+  // gescheitert – dann gehört die Join-Maske (mit Fehlermeldung) auf den
+  // Schirm, nicht weitere 30 Sekunden Spinner.
   const reconnecting =
     !reconnectGaveUp &&
+    !joinError &&
     !me &&
     !storedBanKick &&
     stored?.playerName &&

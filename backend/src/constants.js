@@ -38,6 +38,8 @@ export const DEFAULT_RULES = {
     aelteste: { count: 0, enabled: false },
     zwilling: { count: 0, enabled: false },
     dorfdepp: { count: 0, enabled: false },
+    suendenbock: { count: 0, enabled: false },
+    wildeskind: { count: 0, enabled: false },
   },
 };
 

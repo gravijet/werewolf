@@ -35,8 +35,10 @@ export function load() {
 }
 
 /**
- * Speichert State und Bans (Debounce).
- * @param {object} snapshot - { state, bansSerialized }
+ * Speichert State und Bans (Debounce). Akzeptiert den Snapshot direkt oder als
+ * Factory-Funktion – Letztere wird erst beim tatsächlichen Schreiben aufgerufen,
+ * damit nicht bei jeder State-Mutation ein Snapshot gebaut wird.
+ * @param {object|Function} snapshot
  */
 export function save(snapshot) {
   if (!snapshot) return;
@@ -45,7 +47,8 @@ export function save(snapshot) {
     saveTimeout = null;
     try {
       ensureDir();
-      writeFileSync(STATE_FILE, JSON.stringify(snapshot, null, 0), "utf8");
+      const data = typeof snapshot === "function" ? snapshot() : snapshot;
+      writeFileSync(STATE_FILE, JSON.stringify(data, null, 0), "utf8");
     } catch (e) {
       console.warn("Persistence save:", e.message);
     }

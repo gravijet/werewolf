@@ -50,6 +50,44 @@ export function restoreInviteToken(token) {
 }
 
 /**
+ * Spielstatistik über alle Partien hinweg (überlebt Resets und Server-Neustarts).
+ * Wird beim Übergang nach game_end fortgeschrieben und allen Mitspielenden gezeigt.
+ */
+let stats = {
+  gamesPlayed: 0,
+  wins: { village: 0, werwolf: 0, lovers: 0, kopfgeldjaeger: 0 },
+};
+
+export function getStats() {
+  return { gamesPlayed: stats.gamesPlayed, wins: { ...stats.wins } };
+}
+
+export function restoreStats(data) {
+  if (!data || typeof data !== "object") return;
+  const games = Number(data.gamesPlayed);
+  if (!Number.isFinite(games) || games < 0) return;
+  stats = {
+    gamesPlayed: Math.floor(games),
+    wins: {
+      village: Math.max(0, Math.floor(Number(data.wins?.village) || 0)),
+      werwolf: Math.max(0, Math.floor(Number(data.wins?.werwolf) || 0)),
+      lovers: Math.max(0, Math.floor(Number(data.wins?.lovers) || 0)),
+      kopfgeldjaeger: Math.max(0, Math.floor(Number(data.wins?.kopfgeldjaeger) || 0)),
+    },
+  };
+}
+
+/** Zentraler Übergang nach game_end – schreibt genau einmal die Statistik fort. */
+function finishGame(winner) {
+  if (state.phase !== "game_end") {
+    stats.gamesPlayed += 1;
+    if (winner in stats.wins) stats.wins[winner] += 1;
+  }
+  state.phase = "game_end";
+  state.winner = winner;
+}
+
+/**
  * Für Persistenz: Roh-State und Bans serialisierbar machen.
  */
 export function getStateForPersistence() {
@@ -64,12 +102,15 @@ export function getBansForPersistence() {
   };
 }
 
-/** Vollständiger Persistenz-Snapshot (State, Bans, Einladungs-Token). */
+/** Vollständiger Persistenz-Snapshot (State, Bans, Einladungs-Token, Statistik). */
 export function getPersistSnapshot() {
+  // Live-Referenz auf den State: Das JSON.stringify passiert erst beim
+  // (debounced) Schreiben – so entfällt der teure Deep-Clone pro Mutation.
   return {
-    state: getStateForPersistence(),
+    state,
     bans: getBansForPersistence(),
     inviteToken,
+    stats: getStats(),
   };
 }
 
@@ -95,7 +136,7 @@ export function loadBansFromPersistence(data) {
 
 function schedulePersist() {
   try {
-    persistence.save(getPersistSnapshot());
+    persistence.save(getPersistSnapshot);
   } catch (e) {
     console.warn("Persist:", e.message);
   }
@@ -200,6 +241,9 @@ export function getState(viewerPlayerId = null) {
         amor: {
           lover1Id: viewer?.role === 'amor' ? rawActions.amor?.lover1Id : null,
           lover2Id: viewer?.role === 'amor' ? rawActions.amor?.lover2Id : null
+        },
+        wildeskind: {
+          roleModelId: viewer?.role === 'wildeskind' ? rawActions.wildeskind?.roleModelId : null
         }
       };
     }
@@ -215,6 +259,8 @@ export function getState(viewerPlayerId = null) {
   if (viewer) {
     outState.inviteToken = inviteToken;
   }
+
+  outState.stats = getStats();
 
   if (viewer?.isAdmin) {
     outState.bannedPlayers = Array.from(bans.players.entries()).map(([id, data]) => ({
@@ -273,6 +319,12 @@ function maskPlayer(player, viewerPlayerId) {
   // Der Älteste sieht nur selbst, ob sein zusätzliches Leben verbraucht ist.
   if (isViewer && player.role === "aelteste") {
     out.elderUsedLife = Boolean(player.elderUsedLife);
+  }
+  // Wildes Kind: das gewählte Vorbild kennt nur das Kind selbst (und die
+  // Spielleitung); die Verwandlung wird erst bei der Auflösung öffentlich.
+  if ((isViewer || isGameEnd || isModerator) && (player.role === "wildeskind" || player.wasWildChild)) {
+    if (player.roleModelId) out.roleModelId = player.roleModelId;
+    if (player.wasWildChild) out.wasWildChild = true;
   }
   // Verliebte: dem Spieler selbst immer, am Spielende allen (für die Auflösung).
   if ((isViewer || isGameEnd) && player.inLove) {
@@ -342,7 +394,7 @@ export function addPlayer({
     return { ok: false, error: "room_full" };
   const existing = state.players.find((p) => p.playerId === playerId);
   if (existing) {
-    existing.name = name;
+    existing.name = String(name ?? "").trim().slice(0, 80) || existing.name;
     existing.isConnected = true;
     existing.lastSeenAt = new Date().toISOString();
     return { ok: true, player: existing, rejoin: true };
@@ -566,6 +618,8 @@ export function startGame(hostPlayerId) {
     p.bountyTargetId = null;
     p.elderUsedLife = false;
     p.idiotRevealed = false;
+    p.roleModelId = null;
+    p.wasWildChild = false;
   });
 
   // Kopfgeldjäger: feste Zielperson zu Spielbeginn auslosen (eine andere
@@ -725,6 +779,8 @@ function getNightSubphases() {
   const subs = [];
   // Amor wählt nur in der ersten Nacht das Liebespaar.
   if (state.round === 1 && aliveWithRole("amor")) subs.push("amor");
+  // Das Wilde Kind sucht sich nur in der ersten Nacht sein Vorbild.
+  if (state.round === 1 && aliveWithRole("wildeskind")) subs.push("wildeskind");
   // Der Beschützer legt seine schützende Hand auf, bevor die Werwölfe zuschlagen.
   if (aliveWithRole("beschuetzer")) subs.push("beschuetzer");
   subs.push("werwolf");
@@ -746,8 +802,24 @@ function createNightState() {
       baecker: { targetId: null },
       beschuetzer: { targetId: null },
       amor: { lover1Id: null, lover2Id: null },
+      wildeskind: { roleModelId: null },
     },
     victimId: null,
+  };
+}
+
+/** Frischer Tages-State (Anklage → Abstimmung); Bäcker-Stummschaltung aus der Nacht übernehmen. */
+function createDayState() {
+  return {
+    round: state.round,
+    status: "accusing",
+    accusations: {},
+    votes: {},
+    eliminatedId: null,
+    runoffCandidates: null,
+    accusedIds: null,
+    tieResolution: null,
+    silencedPlayerId: state.night?.actions?.baecker?.targetId || null,
   };
 }
 
@@ -798,6 +870,35 @@ export function hostSkipPhase(hostPlayerId) {
   if (state.phase === "mayor_election") {
     return hostSetMayor(hostPlayerId, null);
   }
+  // Jäger-Schuss überspringen (z. B. Person nicht greifbar oder will nicht
+  // schießen): Kette fortsetzen oder regulär weiter – vorher gab es hier
+  // keinen Ausweg aus der Phase.
+  if (state.phase === "jaeger_shot") {
+    state.jaegerQueue = state.jaegerQueue || [];
+    if (state.jaegerQueue.length > 0 && hasJaegerTarget()) {
+      state.jaegerSourceId = state.jaegerQueue.shift();
+      schedulePersist();
+      return { ok: true, phase: "jaeger_shot", jaegerSourceId: state.jaegerSourceId };
+    }
+    state.jaegerQueue = [];
+    state.jaegerSourceId = null;
+    const winner = checkWinCondition();
+    if (winner) {
+      finishGame(winner);
+      schedulePersist();
+      return { ok: true, phase: "game_end", winner };
+    }
+    if (!state.day) {
+      // Jäger war nachts gestorben: ohne Schuss geht es in den Tag.
+      state.phase = "day";
+      state.day = createDayState();
+      schedulePersist();
+      return { ok: true, phase: "day" };
+    }
+    state.phase = "result";
+    schedulePersist();
+    return { ok: true, phase: "result" };
+  }
   if (state.phase === "day" && state.day && state.day.status !== "decided") {
     state.day.status = "decided";
     state.day.eliminatedId = null;
@@ -839,6 +940,22 @@ export function submitNightAction(playerId, payload) {
         p1.lovePartnerId = p2.playerId;
         p2.lovePartnerId = p1.playerId;
       }
+    }
+    return { ok: true };
+  }
+  if (p.role === "wildeskind" && sub === "wildeskind") {
+    const targetId = payload?.targetId ?? payload?.roleModelId;
+    const target = findPlayer(targetId);
+    if (
+      targetId &&
+      targetId !== p.playerId &&
+      target?.isAlive &&
+      !target.isHost &&
+      target.role !== "moderator"
+    ) {
+      state.night.actions.wildeskind = state.night.actions.wildeskind || {};
+      state.night.actions.wildeskind.roleModelId = targetId;
+      p.roleModelId = targetId;
     }
     return { ok: true };
   }
@@ -1010,6 +1127,10 @@ export function advanceNightPhase(hostPlayerId) {
     }
   }
 
+  // Falls das Wilde Kind seine Subphase verschlafen hat: Vorbild zulosen.
+  ensureWildChildRoleModels();
+  applyDeathConsequences();
+
   // Stirbt der Jäger in der Nacht, schießt er ZUERST – sein Schuss kann den
   // Spielausgang noch drehen (z. B. den letzten Werwolf treffen). Erst danach
   // (in submitJaegerKill) wird die Siegbedingung geprüft. Würde hier zuerst der
@@ -1025,24 +1146,13 @@ export function advanceNightPhase(hostPlayerId) {
 
   const nightWinner = checkWinCondition();
   if (nightWinner) {
-    state.phase = "game_end";
-    state.winner = nightWinner;
+    finishGame(nightWinner);
     schedulePersist();
     return { ok: true, phase: "game_end", winner: nightWinner };
   }
 
   state.phase = "day";
-  state.day = {
-    round: state.round,
-    status: "accusing",
-    accusations: {},
-    votes: {},
-    eliminatedId: null,
-    runoffCandidates: null,
-    accusedIds: null,
-    tieResolution: null,
-    silencedPlayerId: state.night.actions.baecker?.targetId || null,
-  };
+  state.day = createDayState();
   schedulePersist();
   return { ok: true, phase: "day", victimId };
 }
@@ -1059,6 +1169,65 @@ function addGameLog(round, phase, messageKey, playerName) {
   if (state.gameLog.length > MAX_GAME_LOG_ENTRIES) {
     state.gameLog.splice(0, state.gameLog.length - MAX_GAME_LOG_ENTRIES);
   }
+}
+
+/**
+ * Wildes Kind ohne gewähltes Vorbild (Subphase verpasst/übersprungen):
+ * ein zufälliges Vorbild zulosen, damit die Rolle nicht wirkungslos bleibt.
+ */
+function ensureWildChildRoleModels() {
+  state.players
+    .filter((p) => p.role === "wildeskind" && p.isAlive && !p.roleModelId)
+    .forEach((child) => {
+      const candidates = state.players.filter(
+        (q) => q.isAlive && !q.isHost && q.role !== "moderator" && q.playerId !== child.playerId
+      );
+      if (candidates.length > 0) {
+        child.roleModelId = candidates[Math.floor(Math.random() * candidates.length)].playerId;
+      }
+    });
+}
+
+/**
+ * Wildes Kind: Stirbt (oder verschwindet) sein Vorbild, wechselt es still die
+ * Seiten und jagt fortan als Werwolf. Muss nach jeder Todesverarbeitung und
+ * VOR der Siegprüfung laufen, damit die Teams korrekt gezählt werden.
+ */
+function checkWildChildConversion() {
+  state.players.forEach((p) => {
+    if (p.role !== "wildeskind" || !p.isAlive || !p.roleModelId) return;
+    const model = findPlayer(p.roleModelId);
+    if (!model || !model.isAlive) {
+      p.role = "werwolf";
+      p.wasWildChild = true;
+    }
+  });
+}
+
+/**
+ * Kopfgeldjäger: Stirbt die Zielperson, ohne dass das Dorf sie hinausgewählt
+ * hat (Nacht, Jäger-Schuss, Liebes-Kaskade …), wird sofort eine neue Zielperson
+ * ausgelost – sonst wäre die Rolle für den Rest der Partie chancenlos.
+ */
+function reassignBountyTargets() {
+  state.players
+    .filter((p) => p.role === "kopfgeldjaeger" && p.isAlive)
+    .forEach((hunter) => {
+      const target = hunter.bountyTargetId ? findPlayer(hunter.bountyTargetId) : null;
+      if (target?.isAlive) return;
+      const candidates = state.players.filter(
+        (q) => q.isAlive && !q.isHost && q.role !== "moderator" && q.playerId !== hunter.playerId
+      );
+      hunter.bountyTargetId = candidates.length
+        ? candidates[Math.floor(Math.random() * candidates.length)].playerId
+        : null;
+    });
+}
+
+/** Folgen aller frischen Todesfälle zentral anwenden (Reihenfolge ist wichtig). */
+function applyDeathConsequences() {
+  checkWildChildConversion();
+  reassignBountyTargets();
 }
 
 function cascadeLover(deadPlayerId, phase) {
@@ -1180,7 +1349,7 @@ function countDayVotes() {
  * Auswertung und Zufalls-Gleichstand identisch funktionieren.
  * @returns {{ type: "none"|"idiot"|"bounty"|"jaeger"|"eliminated", deadJaegers?: string[] }}
  */
-function applyDayElimination(eliminatedId) {
+function applyDayElimination(eliminatedId, logKey = "lynch") {
   const eliminated = findPlayer(eliminatedId);
   if (!eliminated?.isAlive) return { type: "none" };
 
@@ -1194,11 +1363,12 @@ function applyDayElimination(eliminatedId) {
 
   eliminated.isAlive = false;
   state.day.eliminatedId = eliminatedId;
-  addGameLog(state.round, "day", "lynch", eliminated.name);
+  addGameLog(state.round, "day", logKey, eliminated.name);
 
   if (checkBountyWin(eliminatedId)) return { type: "bounty" };
 
   const loverId = cascadeLover(eliminatedId, "day");
+  applyDeathConsequences();
   const deadJaegers = [];
   if (eliminated.role === "jaeger") deadJaegers.push(eliminatedId);
   if (loverId && findPlayer(loverId)?.role === "jaeger") deadJaegers.push(loverId);
@@ -1246,6 +1416,37 @@ export function resolveDayPhase(hostPlayerId) {
   const result = countDayVotes();
 
   if (result.runoff) {
+    // Sündenbock: Lebt einer, stirbt er beim ersten Gleichstand anstelle einer
+    // Stichwahl – das Dorf hat seinen Schuldigen gefunden.
+    const scapegoat = state.players.find((p) => p.role === "suendenbock" && p.isAlive);
+    if (scapegoat) {
+      state.day.status = "decided";
+      state.day.tieResolution = "scapegoat";
+      state.day.runoffCandidates = null;
+      const outcome = applyDayElimination(scapegoat.playerId, "scapegoat_death");
+      if (outcome.type === "bounty") {
+        finishGame("kopfgeldjaeger");
+        schedulePersist();
+        return { ok: true, decided: true, eliminatedId: scapegoat.playerId, winner: "kopfgeldjaeger" };
+      }
+      if (outcome.type === "jaeger") {
+        state.phase = "jaeger_shot";
+        state.jaegerSourceId = outcome.deadJaegers[0];
+        state.jaegerQueue = outcome.deadJaegers.slice(1);
+        schedulePersist();
+        return { ok: true, phase: "jaeger_shot", jaegerShot: true, eliminatedId: scapegoat.playerId };
+      }
+      const scapegoatWinner = checkWinCondition();
+      if (scapegoatWinner) {
+        finishGame(scapegoatWinner);
+        schedulePersist();
+        return { ok: true, decided: true, phase: "game_end", winner: scapegoatWinner, eliminatedId: scapegoat.playerId };
+      }
+      state.phase = "result";
+      schedulePersist();
+      return { ok: true, decided: true, phase: "result", eliminatedId: scapegoat.playerId, scapegoat: true };
+    }
+
     state.day.runoffCandidates = result.runoff;
     state.day.votes = {};
     state.day.tieResolution = "runoff";
@@ -1278,8 +1479,7 @@ export function resolveDayPhase(hostPlayerId) {
     state.day.runoffCandidates = null;
     const outcome = applyDayElimination(eliminatedId);
     if (outcome.type === "bounty") {
-      state.phase = "game_end";
-      state.winner = "kopfgeldjaeger";
+      finishGame("kopfgeldjaeger");
       schedulePersist();
       return { ok: true, decided: true, eliminatedId, winner: "kopfgeldjaeger" };
     }
@@ -1308,8 +1508,7 @@ export function resolveDayPhase(hostPlayerId) {
     }
     if (outcome.type === "bounty") {
       state.day.status = "decided";
-      state.phase = "game_end";
-      state.winner = "kopfgeldjaeger";
+      finishGame("kopfgeldjaeger");
       schedulePersist();
       return { ok: true, decided: true, eliminatedId: result.eliminatedId, winner: "kopfgeldjaeger" };
     }
@@ -1326,8 +1525,7 @@ export function resolveDayPhase(hostPlayerId) {
   const dayWinner = checkWinCondition();
   if (dayWinner) {
     state.day.status = "decided";
-    state.phase = "game_end";
-    state.winner = dayWinner;
+    finishGame(dayWinner);
     schedulePersist();
     return { ok: true, decided: true, phase: "game_end", winner: dayWinner, eliminatedId: state.day.eliminatedId };
   }
@@ -1348,11 +1546,12 @@ export function submitJaegerKill(hostPlayerId, targetId) {
   if (state.phase !== "jaeger_shot" || !state.jaegerSourceId) return { ok: false, error: "invalid_phase" };
   const target = findPlayer(targetId);
   if (!target || !target.isAlive || target.isHost || target.role === "moderator") return { ok: false, error: "invalid_target" };
-  target.isAlive = false;
-  addGameLog(state.round, "day", "jaeger_shot", target.name);
   const nightCase = !state.day;
+  target.isAlive = false;
+  addGameLog(state.round, nightCase ? "night" : "day", "jaeger_shot", target.name);
 
   const loverId = cascadeLover(targetId, nightCase ? "night" : "day");
+  applyDeathConsequences();
 
   // Trifft der Schuss (oder die Liebes-Kaskade) einen weiteren Jäger, reiht
   // dieser sich für den nächsten Schuss ein – Kettenschüsse sind erlaubt.
@@ -1373,8 +1572,7 @@ export function submitJaegerKill(hostPlayerId, targetId) {
       state.day = state.day || {};
       state.day.jaegerKillId = targetId;
     }
-    state.phase = "game_end";
-    state.winner = jaegerWinner;
+    finishGame(jaegerWinner);
     state.jaegerSourceId = null;
     schedulePersist();
     return { ok: true, phase: "game_end", winner: jaegerWinner, jaegerKillId: targetId };
@@ -1384,17 +1582,7 @@ export function submitJaegerKill(hostPlayerId, targetId) {
     // Jäger ist nachts gestorben -> danach startet der Tag (Anklagen).
     state.jaegerSourceId = null;
     state.phase = "day";
-    state.day = {
-      round: state.round,
-      status: "accusing",
-      accusations: {},
-      votes: {},
-      eliminatedId: null,
-      runoffCandidates: null,
-      accusedIds: null,
-      tieResolution: null,
-      silencedPlayerId: state.night?.actions?.baecker?.targetId || null,
-    };
+    state.day = createDayState();
     schedulePersist();
     return { ok: true, phase: "day", jaegerKillId: targetId };
   }
@@ -1418,8 +1606,7 @@ export function advanceFromResult(hostPlayerId) {
 
   const winner = checkWinCondition();
   if (winner) {
-    state.phase = "game_end";
-    state.winner = winner;
+    finishGame(winner);
     schedulePersist();
     return { ok: true, phase: "game_end", winner };
   }
@@ -1533,10 +1720,20 @@ export function removePlayer(playerId) {
     if (state.night.actions.amor?.lover2Id === playerId) state.night.actions.amor.lover2Id = null;
   }
 
-  // Kopfgeldjäger, dessen Zielperson den Raum verlässt, verliert sein Ziel.
-  state.players.forEach((p) => {
-    if (p.bountyTargetId === playerId) p.bountyTargetId = null;
-  });
+  if (state.night?.actions?.wildeskind?.roleModelId === playerId) {
+    state.night.actions.wildeskind.roleModelId = null;
+  }
+
+  // Verlässt das Vorbild des Wilden Kindes oder die Kopfgeld-Zielperson den
+  // Raum, greifen dieselben Folgen wie bei einem Tod (Verwandlung / Neuziel).
+  if (state.phase !== "lobby" && state.phase !== "game_end") {
+    applyDeathConsequences();
+  } else {
+    state.players.forEach((p) => {
+      if (p.bountyTargetId === playerId) p.bountyTargetId = null;
+      if (p.roleModelId === playerId) p.roleModelId = null;
+    });
+  }
 
   if (state.lastProtectedId === playerId) state.lastProtectedId = null;
   if (state.jaegerSourceId === playerId) state.jaegerSourceId = null;
@@ -1605,6 +1802,9 @@ function doResetToLobby() {
   state.witchUsedHeal = false;
   state.witchUsedPoison = false;
   state.lastProtectedId = null;
+  // Wer während der Partie endgültig gegangen ist, soll nicht als Geist in der
+  // neuen Lobby hängen (würde Namen blockieren und die Plätze belegen).
+  state.players = state.players.filter((p) => p.isConnected);
   state.players.forEach((p) => {
     p.role = null;
     p.isAlive = true;
@@ -1614,7 +1814,10 @@ function doResetToLobby() {
     p.bountyTargetId = null;
     p.elderUsedLife = false;
     p.idiotRevealed = false;
+    p.roleModelId = null;
+    p.wasWildChild = false;
   });
+  ensureHost();
 }
 
 /**
@@ -1653,10 +1856,10 @@ export function resetState() {
 }
 
 /**
- * CLI/Server: Spiel sofort beenden.
+ * CLI/Server: Spiel sofort beenden. Zählt nur als Partie, wenn wirklich eine lief.
  */
 export function endGameNow(winner = "village") {
-  state.phase = "game_end";
-  state.winner = winner;
+  if (state.phase === "lobby") return;
+  finishGame(winner);
   schedulePersist();
 }

@@ -19,6 +19,8 @@ const ROLE_IDS = [
   "aelteste",
   "zwilling",
   "dorfdepp",
+  "suendenbock",
+  "wildeskind",
 ];
 
 /** Welche Rollen beim Überlauf zuerst entfernt werden (Füll-/Bulk-Rollen). */
@@ -113,6 +115,8 @@ export function getRoleMeta() {
     aelteste: { label: "Der Älteste", team: "village" },
     zwilling: { label: "Zwilling", team: "village" },
     dorfdepp: { label: "Dorfdepp", team: "village" },
+    suendenbock: { label: "Sündenbock", team: "village" },
+    wildeskind: { label: "Wildes Kind", team: "village" },
   };
 }
 

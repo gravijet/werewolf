@@ -271,6 +271,33 @@ export function LobbyScreen({ lang, onOpenAdmin }) {
             })}
           </div>
         </Card>
+
+        {state?.stats?.gamesPlayed > 0 && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "12px 18px",
+              borderRadius: 16,
+              background: "var(--md-sys-color-surface)",
+              border: "1px solid var(--hairline)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--md-sys-color-on-surface-variant)",
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--md-sys-color-primary)" }}>leaderboard</span>
+            <span>{t(lang, "statsTitle")}:</span>
+            <span>{state.stats.gamesPlayed} {t(lang, "statsGames")}</span>
+            <span>· {t(lang, "teamVillage")} {state.stats.wins?.village ?? 0}</span>
+            <span>· {t(lang, "teamWerewolf")} {state.stats.wins?.werwolf ?? 0}</span>
+            {(state.stats.wins?.lovers ?? 0) > 0 && <span>· {t(lang, "teamLovers")} {state.stats.wins.lovers}</span>}
+            {(state.stats.wins?.kopfgeldjaeger ?? 0) > 0 && <span>· {t(lang, "kopfgeldjaeger")} {state.stats.wins.kopfgeldjaeger}</span>}
+          </div>
+        )}
       </main>
 
       <footer

@@ -709,6 +709,218 @@ test("getPublicState enthält keine Spielerdaten", () => {
   assert.equal(pub.gameLog, undefined);
 });
 
+test("Sündenbock stirbt beim Gleichstand anstelle einer Stichwahl", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ suendenbock: { count: 1, enabled: true }, dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3", "p4"];
+  const goat = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "suendenbock");
+  const others = ids.filter((id) => id !== goat.playerId);
+
+  gs.advanceNightPhase("host"); // kein Nachtopfer -> Tag
+
+  // Gleichstand zwischen zwei Nicht-Sündenböcken erzwingen.
+  gs.submitDayAccusation(others[0], others[1]);
+  gs.submitDayAccusation(others[1], others[2]);
+  gs.resolveDayPhase("host"); // -> voting
+  gs.submitDayVote(others[0], others[1]);
+  gs.submitDayVote(others[1], others[2]);
+  const res = gs.resolveDayPhase("host");
+
+  assert.equal(res.scapegoat, true, "der Gleichstand trifft den Sündenbock");
+  assert.equal(res.eliminatedId, goat.playerId);
+  assert.equal(gs.findPlayer(goat.playerId).isAlive, false, "der Sündenbock ist tot");
+  assert.equal(gs.findPlayer(others[1]).isAlive, true, "die Gleichstand-Kandidaten überleben");
+  assert.equal(gs.findPlayer(others[2]).isAlive, true);
+  assert.equal(gs.getState(null).phase, "result");
+  assert.ok(
+    gs.getState(null).gameLog.some((e) => e.messageKey === "scapegoat_death"),
+    "der Sündenbock-Tod steht im Protokoll"
+  );
+});
+
+test("Toter Sündenbock: Gleichstand führt wieder zur normalen Stichwahl", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ suendenbock: { count: 1, enabled: true }, dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3", "p4"];
+  const goat = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "suendenbock");
+  goat.isAlive = false; // Sündenbock ist bereits ausgeschieden
+  const others = ids.filter((id) => id !== goat.playerId);
+
+  gs.advanceNightPhase("host");
+  gs.submitDayAccusation(others[0], others[1]);
+  gs.submitDayAccusation(others[1], others[2]);
+  gs.resolveDayPhase("host");
+  gs.submitDayVote(others[0], others[1]);
+  gs.submitDayVote(others[1], others[2]);
+  const res = gs.resolveDayPhase("host");
+  assert.equal(res.runoff, true, "ohne lebenden Sündenbock gibt es die Stichwahl");
+});
+
+test("Wildes Kind wählt ein Vorbild und wird bei dessen Tod zum Werwolf", () => {
+  setupLobby(5, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ wildeskind: { count: 1, enabled: true }, dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3", "p4"];
+  const child = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "wildeskind");
+  const model = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "dorfbewohner");
+
+  // Erste Nacht beginnt mit der Vorbild-Wahl.
+  assert.equal(gs.getState(null).night.subPhase, "wildeskind");
+  gs.submitNightAction(child.playerId, { targetId: model.playerId });
+  assert.equal(gs.findPlayer(child.playerId).roleModelId, model.playerId);
+
+  // Nur das Kind selbst sieht sein Vorbild.
+  const ownView = gs.getState(child.playerId).players.find((p) => p.playerId === child.playerId);
+  assert.equal(ownView.roleModelId, model.playerId);
+  const otherView = gs.getState(model.playerId).players.find((p) => p.playerId === child.playerId);
+  assert.equal(otherView.roleModelId, undefined, "andere sehen das Vorbild nicht");
+
+  // Werwölfe töten das Vorbild -> das Kind wechselt still die Seiten.
+  gs.advanceNightPhase("host"); // wildeskind -> werwolf
+  gs.submitNightAction("host", { targetId: model.playerId });
+  gs.advanceNightPhase("host"); // Nacht auswerten
+  const converted = gs.findPlayer(child.playerId);
+  assert.equal(converted.role, "werwolf", "das Wilde Kind ist jetzt ein Werwolf");
+  assert.equal(converted.wasWildChild, true);
+});
+
+test("Wildes Kind ohne Wahl bekommt am Nachtende ein zufälliges Vorbild", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ wildeskind: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const child = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "wildeskind");
+
+  gs.advanceNightPhase("host"); // wildeskind -> werwolf (ohne Wahl)
+  gs.advanceNightPhase("host"); // Nacht auswerten
+  const after = gs.findPlayer(child.playerId);
+  assert.ok(after.roleModelId, "das Vorbild wurde zugelost");
+  assert.notEqual(after.roleModelId, child.playerId, "niemals das Kind selbst");
+});
+
+test("Wildes Kind zählt nach der Verwandlung für die Werwolf-Siegbedingung", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({
+      werwolf: { count: 1, enabled: true },
+      wildeskind: { count: 1, enabled: true },
+      dorfbewohner: { count: 2, enabled: true },
+    }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const all = ids.map((id) => gs.findPlayer(id));
+  const child = all.find((p) => p.role === "wildeskind");
+  const villager = all.find((p) => p.role === "dorfbewohner");
+
+  // Kind nimmt einen Dorfbewohner als Vorbild; die Wölfe töten genau ihn.
+  gs.submitNightAction(child.playerId, { targetId: villager.playerId });
+  gs.advanceNightPhase("host"); // -> werwolf
+  gs.submitNightAction("host", { targetId: villager.playerId });
+  const res = gs.advanceNightPhase("host");
+
+  // Nach der Verwandlung: 2 Werwölfe vs. 1 Dorfbewohner -> Werwölfe gewinnen.
+  assert.equal(res.winner, "werwolf", "Verwandlung wird vor der Siegprüfung berücksichtigt");
+});
+
+test("Kopfgeldjäger erhält ein neues Ziel, wenn die Zielperson nachts stirbt", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ kopfgeldjaeger: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  gs.startGame("host");
+  const ids = ["p0", "p1", "p2", "p3"];
+  const hunter = ids.map((id) => gs.findPlayer(id)).find((p) => p.role === "kopfgeldjaeger");
+  const oldTarget = hunter.bountyTargetId;
+  assert.ok(oldTarget);
+
+  // Werwölfe töten genau die Zielperson.
+  gs.submitNightAction("host", { targetId: oldTarget });
+  gs.advanceNightPhase("host");
+
+  const after = gs.findPlayer(hunter.playerId);
+  assert.notEqual(after.bountyTargetId, oldTarget, "das alte Ziel ist tot und wird ersetzt");
+  assert.ok(after.bountyTargetId, "ein neues Ziel wurde ausgelost");
+  assert.equal(gs.findPlayer(after.bountyTargetId).isAlive, true, "das neue Ziel lebt");
+});
+
+test("Jäger-Schuss kann übersprungen werden, ohne dass das Spiel hängen bleibt", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({
+      werwolf: { count: 1, enabled: true },
+      jaeger: { count: 1, enabled: true },
+      dorfbewohner: { count: 2, enabled: true },
+    }),
+  });
+  gs.startGame("host");
+  const all = ["p0", "p1", "p2", "p3"].map((id) => gs.findPlayer(id));
+  const jaeger = all.find((p) => p.role === "jaeger");
+
+  // Werwolf tötet den Jäger -> jaeger_shot.
+  gs.submitNightAction("host", { targetId: jaeger.playerId });
+  const r = gs.advanceNightPhase("host");
+  assert.equal(r.phase, "jaeger_shot");
+
+  // Der Host überspringt den Schuss -> es geht regulär in den Tag.
+  const skip = gs.hostSkipPhase("host");
+  assert.ok(skip.ok);
+  assert.equal(skip.phase, "day");
+  assert.equal(gs.getState(null).phase, "day");
+  assert.equal(gs.getState(null).jaegerSourceId, null);
+});
+
+test("Statistik zählt Partien und Siege und überlebt Resets", () => {
+  setupLobby(3, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ werwolf: { count: 1, enabled: true }, dorfbewohner: { count: 2, enabled: true } }),
+  });
+  const before = gs.getStats();
+  gs.startGame("host");
+  const villager = ["p0", "p1", "p2"].map((id) => gs.findPlayer(id)).find((p) => p.role === "dorfbewohner");
+  gs.submitNightAction("host", { targetId: villager.playerId });
+  gs.advanceNightPhase("host"); // Werwolf erreicht Gleichzahl -> game_end
+
+  const after = gs.getStats();
+  assert.equal(after.gamesPlayed, before.gamesPlayed + 1, "die Partie wurde gezählt");
+  assert.equal(after.wins.werwolf, before.wins.werwolf + 1, "der Werwolf-Sieg wurde gezählt");
+
+  // Reset in die Lobby ändert die Statistik nicht.
+  gs.restartToLobby("host");
+  assert.deepEqual(gs.getStats(), after, "Reset löscht die Statistik nicht");
+
+  // Statistik ist im State für Mitspielende sichtbar.
+  const view = gs.getState("p0");
+  assert.equal(view.stats.gamesPlayed, after.gamesPlayed);
+});
+
+test("Neue Runde entfernt Geister (getrennte Verbindungen) aus der Lobby", () => {
+  setupLobby(4, {
+    mayorElectionEnabled: false,
+    roles: FULL_ROLES({ dorfbewohner: { count: 3, enabled: true } }),
+  });
+  gs.startGame("host");
+  // p3 verlässt die Partie endgültig.
+  gs.setPlayerDisconnected("p3");
+  gs.endGameNow("village");
+  gs.restartToLobby("host");
+
+  const s = gs.getState(null);
+  assert.equal(s.phase, "lobby");
+  assert.equal(s.players.some((p) => p.playerId === "p3"), false, "der Geist ist entfernt");
+  assert.equal(s.players.some((p) => p.playerId === "p0"), true, "verbundene Spieler bleiben");
+});
+
 test("Enttarnter Dorfdepp darf bei der Bürgermeisterwahl nicht abstimmen", () => {
   setupLobby(4, {
     mayorElectionEnabled: true,

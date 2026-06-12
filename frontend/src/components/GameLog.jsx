@@ -9,6 +9,7 @@ const LOG_ICON = {
   jaeger_shot: "sports_martial_arts",
   lover_death: "heart_broken",
   idiot_revealed: "sentiment_very_dissatisfied",
+  scapegoat_death: "balance",
 };
 
 const LOG_KEY = {
@@ -18,6 +19,7 @@ const LOG_KEY = {
   jaeger_shot: "logJaegerShot",
   lover_death: "logLoverDeath",
   idiot_revealed: "logIdiotRevealed",
+  scapegoat_death: "logScapegoat",
 };
 
 /** Einheitliche Darstellung des Spielprotokolls (Geist- & Spielende-Screen). */

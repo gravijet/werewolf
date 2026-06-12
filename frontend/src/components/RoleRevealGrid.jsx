@@ -17,6 +17,8 @@ const ROLE_ICON = {
   aelteste: "elderly",
   zwilling: "group",
   dorfdepp: "sentiment_very_dissatisfied",
+  suendenbock: "balance",
+  wildeskind: "nature_people",
   moderator: "admin_panel_settings",
 };
 
@@ -33,6 +35,8 @@ const TEAM = {
   aelteste: "village",
   zwilling: "village",
   dorfdepp: "village",
+  suendenbock: "village",
+  wildeskind: "village",
   kopfgeldjaeger: "solo",
   moderator: "moderator",
 };
@@ -102,6 +106,12 @@ export function RoleRevealGrid({ lang, players = [], showStatus = true }) {
               {p.isMayor && (
                 <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "var(--md-sys-color-tertiary-container)", color: "var(--md-sys-color-on-tertiary-container)" }}>
                   {t(lang, "mayor")}
+                </span>
+              )}
+              {p.wasWildChild && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "var(--md-sys-color-secondary-container)", color: "var(--md-sys-color-on-secondary-container)", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>nature_people</span>
+                  {t(lang, "wildeskind")}
                 </span>
               )}
               {p.inLove && (

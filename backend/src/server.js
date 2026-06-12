@@ -50,6 +50,7 @@ import {
   getPersistSnapshot,
   loadBansFromPersistence,
   restoreInviteToken,
+  restoreStats,
   forceUnban,
   resetState,
   resetToLobbyAfterGameEnd,
@@ -240,7 +241,9 @@ io.on("connection", (socket) => {
         if (typeof ack === "function") ack({ ok: false, code, message });
       };
 
-      if (!ipLimiter("join:" + ip, 30, 60000)) {
+      // Großzügig genug für Reconnect-Stürme hinter gemeinsamem NAT (eine
+      // WLAN-IP, viele Geräte), aber weiterhin ein Schutz gegen Passwort-Raten.
+      if (!ipLimiter("join:" + ip, 60, 60000)) {
         socket.emit("error", { code: "rate_limited", message: "Zu viele Anfragen. Bitte kurz warten." });
         if (typeof ack === "function") ack({ ok: false, code: "rate_limited" });
         return;
@@ -674,6 +677,7 @@ try {
   if (persisted) {
     loadBansFromPersistence(persisted);
     restoreInviteToken(persisted.inviteToken);
+    restoreStats(persisted.stats);
   }
 } catch (e) {
   console.warn("Bans laden:", e.message);

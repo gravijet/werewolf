@@ -21,6 +21,7 @@ export function NightScreen({ lang }) {
   const [amorLover2, setAmorLover2] = useState(null);
   const [baeckerTarget, setBaeckerTarget] = useState(null);
   const [beschuetzerTarget, setBeschuetzerTarget] = useState(null);
+  const [wildChildModel, setWildChildModel] = useState(null);
 
   const { speakCurrent } = useHostAudio(state?.phase, night?.subPhase, me?.isHost, lang);
 
@@ -38,7 +39,8 @@ export function NightScreen({ lang }) {
     (myRole === "hexe" && subPhase === "hexe") ||
     (myRole === "amor" && subPhase === "amor") ||
     (myRole === "baecker" && subPhase === "baecker") ||
-    (myRole === "beschuetzer" && subPhase === "beschuetzer");
+    (myRole === "beschuetzer" && subPhase === "beschuetzer") ||
+    (myRole === "wildeskind" && subPhase === "wildeskind");
 
   const submitAction = () => {
     if (me?.isHost && subPhase === "werwolf" && selectedTarget) emit("night_action", { targetId: selectedTarget });
@@ -47,6 +49,7 @@ export function NightScreen({ lang }) {
     if (myRole === "amor" && amorLover1 && amorLover2) emit("night_action", { lover1Id: amorLover1, lover2Id: amorLover2 });
     if (myRole === "baecker") emit("night_action", { targetId: baeckerTarget || null });
     if (myRole === "beschuetzer") emit("night_action", { targetId: beschuetzerTarget || null });
+    if (myRole === "wildeskind" && wildChildModel) emit("night_action", { targetId: wildChildModel });
   };
 
   const hasActed =
@@ -55,7 +58,8 @@ export function NightScreen({ lang }) {
     (myRole === "hexe" && (actions.hexe?.healId || actions.hexe?.poisonId || actions.hexe?.passed)) ||
     (myRole === "amor" && (actions.amor?.lover1Id && actions.amor?.lover2Id)) ||
     (myRole === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed)) ||
-    (myRole === "beschuetzer" && (actions.beschuetzer?.targetId || actions.beschuetzer?.passed));
+    (myRole === "beschuetzer" && (actions.beschuetzer?.targetId || actions.beschuetzer?.passed)) ||
+    (myRole === "wildeskind" && actions.wildeskind?.roleModelId);
 
   const seherResultId = actions.seher?.targetId;
   const seherResultPlayer = seherResultId ? (state?.players ?? []).find(p => p.playerId === seherResultId) : null;
@@ -165,6 +169,35 @@ export function NightScreen({ lang }) {
                   {twins.length > 0
                     ? t(lang, "zwillingPartnerHint").replace("{names}", twins.map((p) => p.name).join(", "))
                     : t(lang, "zwillingAloneHint")}
+                </p>
+              </div>
+            </Card>
+          );
+        })()}
+
+        {(myRole === "wildeskind" || myPlayer?.wasWildChild) && (() => {
+          const model = myPlayer?.roleModelId
+            ? (state?.players ?? []).find((p) => p.playerId === myPlayer.roleModelId)
+            : null;
+          if (myPlayer?.wasWildChild) {
+            return (
+              <Card style={{ marginBottom: 24, padding: "14px 18px", background: "var(--md-sys-color-error-container)", border: "1px solid transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-error)", fontSize: 24 }}>nature_people</span>
+                  <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-error-container)", lineHeight: 1.4 }}>
+                    {t(lang, "wildChildConvertedHint")}
+                  </p>
+                </div>
+              </Card>
+            );
+          }
+          if (!model) return null;
+          return (
+            <Card style={{ marginBottom: 24, padding: "14px 18px", background: "var(--md-sys-color-secondary-container)", border: "1px solid transparent" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--md-sys-color-primary)", fontSize: 24 }}>nature_people</span>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--md-sys-color-on-secondary-container)", lineHeight: 1.4 }}>
+                  {t(lang, "wildChildModelHint").replace("{name}", model.name)}
                 </p>
               </div>
             </Card>
@@ -414,6 +447,22 @@ export function NightScreen({ lang }) {
               </>
             )}
 
+            {myRole === "wildeskind" && subPhase === "wildeskind" && (
+              <>
+                <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20 }}>{t(lang, "wildChildChooseModel")}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                  {alive.map((p) => (
+                    <button key={p.playerId} type="button" className="md-state-layer" onClick={() => setWildChildModel(wildChildModel === p.playerId ? null : p.playerId)}
+                      style={{ padding: "14px 20px", borderRadius: 16, border: "1px solid transparent", background: wildChildModel === p.playerId ? "var(--md-sys-color-secondary-container)" : "var(--md-sys-color-surface-container-low)", color: "var(--md-sys-color-on-surface)", fontWeight: 600 }}>
+                      {p.name}
+                      {wildChildModel === p.playerId && <span className="material-symbols-outlined" style={{ fontSize: 18, marginLeft: 6 }}>check_circle</span>}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 24px" }}>{t(lang, "wildChildChooseHint")}</p>
+              </>
+            )}
+
             {myRole === "baecker" && subPhase === "baecker" && (
               <>
                 <p style={{ fontSize: 16, fontWeight: 500, color: "var(--md-sys-color-on-surface)", marginBottom: 20 }}>{t(lang, "baeckerWhoSilence")}</p>
@@ -483,6 +532,7 @@ export function NightScreen({ lang }) {
               disabled={
                 (me?.isHost && subPhase === "werwolf") || myRole === "seher" ? !selectedTarget :
                 myRole === "amor" ? !(amorLover1 && amorLover2) :
+                myRole === "wildeskind" ? !wildChildModel :
                 false
               }
             >
@@ -585,6 +635,9 @@ export function NightScreen({ lang }) {
           )}
           {subPhase === "amor" && (actions.amor?.lover1Id && actions.amor?.lover2Id) && (
             <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "amor")}: {t(lang, "statusReady")}</p>
+          )}
+          {subPhase === "wildeskind" && actions.wildeskind?.roleModelId && (
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "wildeskind")}: {t(lang, "statusReady")}</p>
           )}
           {subPhase === "baecker" && (actions.baecker?.targetId != null || actions.baecker?.passed) && (
             <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", margin: "0 0 12px" }}>{t(lang, "baecker")}: {t(lang, "statusReady")}</p>

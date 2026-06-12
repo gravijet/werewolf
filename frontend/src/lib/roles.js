@@ -18,6 +18,8 @@ export const ROLE_IDS = [
   "aelteste",
   "zwilling",
   "dorfdepp",
+  "suendenbock",
+  "wildeskind",
 ];
 
 /**

@@ -6,7 +6,9 @@ Dieses Dokument beschreibt das State-Modell, die Spielphasen und alle Socket.io-
 
 Ein einziger aktiver Spielraum, vollständig im Speicher gehalten (`backend/src/game-state.js`).
 Der Zustand wird zusätzlich debounced nach `data/state.json` persistiert (Backup bei Absturz;
-beim Start wird bewusst **nicht** geladen, es startet immer eine leere Lobby).
+beim Start wird bewusst **nicht** geladen, es startet immer eine leere Lobby). **Bans**, das
+**Einladungs-Token** und die **Spielstatistik** (`stats`: Partien & Siege pro Team) überleben
+Neustarts und Resets; die Statistik wird allen Mitspielenden im State mitgeliefert.
 
 Das Spiel ist **moderator-geführt**: Der Host (Rolle `moderator`) steuert die Phasen, ruft die
 Rollen auf und gibt z. B. das Werwolf-Opfer ein. Die Mitspieler stimmen über ihre Geräte ab.
@@ -25,7 +27,7 @@ lobby → mayor_election → night → day → result → (night → day → res
 | `night`          | Nacht mit dynamischen Subphasen (siehe unten). |
 | `day`            | Anklage (`accusing`) → Abstimmung (`voting`) → Entscheidung. |
 | `result`         | Zusammenfassung der Runde; Host startet die nächste. |
-| `jaeger_shot`    | Sonderphase: ausgeschiedener Jäger gibt einen letzten Schuss ab. Trifft er einen weiteren Jäger, folgt dessen Schuss direkt danach (`jaegerQueue`). |
+| `jaeger_shot`    | Sonderphase: ausgeschiedener Jäger gibt einen letzten Schuss ab. Trifft er einen weiteren Jäger, folgt dessen Schuss direkt danach (`jaegerQueue`). Der Host kann den Schuss per `host_skip_phase` verfallen lassen (z. B. wenn die Person nicht greifbar ist). |
 | `game_end`       | Spielende; **alle Rollen werden enthüllt**. |
 
 ### Dynamische Nacht-Subphasen
@@ -33,6 +35,7 @@ lobby → mayor_election → night → day → result → (night → day → res
 `getNightSubphases()` baut die Reihenfolge anhand der **lebenden** Rollen:
 
 - `amor` – nur in der ersten Nacht, wenn ein lebender Amor existiert
+- `wildeskind` – nur in der ersten Nacht: das Wilde Kind wählt sein Vorbild (ohne Wahl wird am Nachtende eines zugelost)
 - `beschuetzer` – jede Nacht, wenn ein Beschützer lebt (legt den Schutz vor den Werwölfen; darf auch aussetzen)
 - `werwolf` – immer (Anker; Host gibt das Opfer ein)
 - `seher` – nur, wenn ein Seher lebt
@@ -50,7 +53,7 @@ Dadurch klickt der Host nicht mehr durch leere Phasen.
 | `hexe`            | Dorf    | Ein Heil- und ein Gifttrank, je einmal pro Partie. |
 | `dorfbewohner`    | Dorf    | Keine Nachtaktion. |
 | `amor`            | Dorf    | Bestimmt in Nacht 1 das Liebespaar. |
-| `kopfgeldjaeger`  | Solo    | Bekommt zu Spielbeginn eine ausgeloste Zielperson; gewinnt, wenn genau sie am Tag gelyncht wird. |
+| `kopfgeldjaeger`  | Solo    | Bekommt zu Spielbeginn eine ausgeloste Zielperson; gewinnt, wenn genau sie am Tag gelyncht wird. Stirbt die Zielperson anderweitig (Nacht, Jäger-Schuss, Liebes-Kaskade), wird sofort eine neue ausgelost. |
 | `jaeger`          | Dorf    | Schießt beim Ausscheiden auf eine Person. |
 | `blinzelmaedchen` | Dorf    | Darf nachts die Werwölfe „erspähen". |
 | `baecker`         | Dorf    | Schaltet eine Person für den nächsten Tag stumm. |
@@ -58,6 +61,8 @@ Dadurch klickt der Host nicht mehr durch leere Phasen.
 | `aelteste`        | Dorf    | Übersteht den ersten Werwolf-Angriff der Partie (still, ohne Log). Gift, Abstimmung und Jäger-Schuss wirken normal. |
 | `zwilling`        | Dorf    | Zwillinge erkennen einander von Spielbeginn an (gegenseitige Rollensicht), sonst wie Dorfbewohner. |
 | `dorfdepp`        | Dorf    | Überlebt die erste Lynch-Abstimmung: Die Rolle wird öffentlich (`idiotRevealed`), er bleibt am Leben, verliert aber dauerhaft sein Stimmrecht (Tag und Bürgermeisterwahl). |
+| `suendenbock`     | Dorf    | Endet die erste Abstimmungsrunde im Gleichstand, stirbt der Sündenbock anstelle einer Stichwahl (`tieResolution: "scapegoat"`, Log `scapegoat_death`). Ist er bereits tot, läuft die normale Stichwahl. |
+| `wildeskind`      | Dorf → Werwolf | Wählt in Nacht 1 ein Vorbild (`roleModelId`). Stirbt oder verschwindet das Vorbild, wird das Kind **still** zum `werwolf` (`wasWildChild: true`); die Verwandlung greift vor jeder Siegprüfung. |
 | `moderator`       | –       | Der Host; spielt nicht aktiv mit. |
 
 Die Verteilung erfolgt in `roles-engine.js`. `count` kann `"1/3"` (Werwölfe) oder eine feste Zahl
@@ -81,6 +86,7 @@ bleiben erhalten. Der Rest wird mit Dorfbewohnern aufgefüllt.
 - Nachtaktionen werden so maskiert, dass nur die jeweils berechtigte Rolle ihr Ergebnis sieht
   (z. B. sieht nur der Seher sein Prüf-Ergebnis; die Hexe sieht das Werwolf-Opfer).
 - Zwillinge sehen gegenseitig ihre Rolle; ein enttarnter Dorfdepp (`idiotRevealed`) ist für alle sichtbar.
+- Das Vorbild des Wilden Kindes (`roleModelId`) sehen nur das Kind selbst und die Spielleitung; `wasWildChild` wird erst bei der Auflösung öffentlich.
 - `reconnectToken`, `fingerprint` und `ip` werden **nie** an Clients gesendet.
 - **Nicht beigetretene Sockets** erhalten nur `getPublicState()`: `{ public: true, phase, round, playersCount, rules: { minPlayers, maxPlayers } }` – keine Spielernamen, kein Einladungs-Token, keine Spiel-Events.
 - Das **Einladungs-Token** (`inviteToken`) sehen nur beigetretene Mitglieder. Der Link `/nopassword?t=<token>` erlaubt den Beitritt ohne Passwort; das Token überlebt Server-Neustarts (Persistenz) und rotiert bei jedem Spiel-Reset.

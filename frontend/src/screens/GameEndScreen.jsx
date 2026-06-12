@@ -20,6 +20,7 @@ export function GameEndScreen({ lang }) {
   const winner = state?.winner;
   const players = state?.players ?? [];
   const gameLog = state?.gameLog ?? [];
+  const stats = state?.stats;
   const isHostOrAdmin = me?.isHost || me?.isAdmin;
 
   const cfg = WINNERS[winner] || { grad: "var(--hero-gradient)", icon: "emoji_events", key: "villageWins" };
@@ -89,6 +90,41 @@ export function GameEndScreen({ lang }) {
           </h2>
         </div>
         <GameLog lang={lang} entries={gameLog} />
+
+        {stats?.gamesPlayed > 0 && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "32px 0 16px" }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24, color: "var(--md-sys-color-primary)" }}>leaderboard</span>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--md-sys-color-on-surface)", margin: 0, letterSpacing: "-0.01em" }}>
+                {t(lang, "statsTitle")}
+              </h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
+              {[
+                { label: t(lang, "statsGames"), value: stats.gamesPlayed, icon: "casino", color: "var(--md-sys-color-primary)" },
+                { label: t(lang, "teamVillage"), value: stats.wins?.village ?? 0, icon: "groups", color: "var(--g-blue)" },
+                { label: t(lang, "teamWerewolf"), value: stats.wins?.werwolf ?? 0, icon: "pets", color: "var(--g-red)" },
+                { label: t(lang, "teamLovers"), value: stats.wins?.lovers ?? 0, icon: "favorite", color: "#ec407a" },
+                { label: t(lang, "kopfgeldjaeger"), value: stats.wins?.kopfgeldjaeger ?? 0, icon: "crisis_alert", color: "#7c4dff" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    padding: "16px 12px",
+                    borderRadius: 16,
+                    background: "var(--md-sys-color-surface)",
+                    border: "1px solid var(--hairline)",
+                    textAlign: "center",
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 24, color: item.color }}>{item.icon}</span>
+                  <p style={{ fontSize: 24, fontWeight: 800, margin: "4px 0 2px", color: "var(--md-sys-color-on-surface)" }}>{item.value}</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, margin: 0, color: "var(--md-sys-color-on-surface-variant)" }}>{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </main>
 
       <footer

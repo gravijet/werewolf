@@ -20,4 +20,4 @@ npm run dev
 
 Run backend tests with `npm test` in `backend/` and build the frontend with `npm run build` in `frontend/`.
 
-Set passwords, allowed origins and `VITE_API_URL` for your own instance. Saved sessions and reconnect tokens are excluded from Git.
+Set passwords, allowed origins and `VITE_API_URL` for your own instance.

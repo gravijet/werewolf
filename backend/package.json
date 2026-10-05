@@ -1,7 +1,7 @@
 {
   "name": "werwolf-backend",
   "version": "1.0.0",
-  "description": "Backend für Werwolf – Echtzeit-Spielraum",
+  "description": "Realtime Werewolf game backend.",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
